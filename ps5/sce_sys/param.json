@@ -7,9 +7,9 @@
   "attribute": 0,
   "attribute2": 0,
   "attribute3": 139722816,
-  "conceptId": "99024",
+  "conceptId": "99025",
   "contentBadgeType": 1,
-  "contentId": "UP9000-PPSA99024_00-PS5HOOKSHOT00001",
+  "contentId": "UP9000-PPSA99025_00-PS5LONGSHOT00001",
   "contentVersion": "01.000.000",
   "downloadDataSize": 256,
   "gameIntent": {
@@ -25,7 +25,7 @@
   "localizedParameters": {
     "defaultLanguage": "en-US",
     "en-US": {
-      "titleName": "Hookshot"
+      "titleName": "Longshot"
     }
   },
   "masterVersion": "01.00",
@@ -36,6 +36,6 @@
   },
   "requiredSystemSoftwareVersion": "0x0000000000000000",
   "sdkVersion": "0x0000000000000000",
-  "titleId": "PPSA99024",
+  "titleId": "PPSA99025",
   "versionFileUri": ""
 }

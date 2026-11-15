@@ -212,3 +212,14 @@ int hos_sdl_pad_effect(void *pad, const void *data, int size) { (void)pad, (void
 int hos_sdl_pad_has_sensor(void *pad, int type) { (void)pad, (void)type; return 0; }
 int hos_sdl_pad_sensor_enable(void *pad, int type, int on) { (void)pad, (void)type, (void)on; return 0; }
 int hos_sdl_pad_sensor(void *pad, int type, float *data, int n) { (void)pad, (void)type, (void)data, (void)n; return 0; }
+
+/* ---- (longshot) what hos_sdl.h has gained since the port was written: nothing of it is on the console ---- */
+int hos_sdl_hint_override(const char *name, const char *value) { (void)name, (void)value; return 0; }
+void hos_sdl_mouse_position(float *x, float *y) { if (x) *x = 0; if (y) *y = 0; }
+void hos_sdl_text_input(void *window, int on) { (void)window, (void)on; }
+char *hos_sdl_clipboard(void) { return NULL; }
+void hos_sdl_free(void *p) { (void)p; }
+void hos_sdl_pad_log_connection(void *pad, int motion, int steam) { (void)pad, (void)motion, (void)steam; }
+int hos_sdl_knows_steam_pads(void) { return 0; }
+uint16_t hos_sdl_pad_vendor(void *pad) { (void)pad; return 0x054c; }   /* (Sony: the DualSense) */
+uint64_t hos_sdl_pad_steam_handle(void *pad) { (void)pad; return 0; }

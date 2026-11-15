@@ -1,4 +1,4 @@
-"""PS5: the game, the runtime and the Vulkan back end compiled for the console and linked into one title, dist/PPSA99024.
+"""PS5: the game, the runtime and the Vulkan back end compiled for the console and linked into one title, dist/PPSA99025.
 
     python3 -I ps5/build.py [--jobs N] [--compile-only]
 
@@ -30,6 +30,7 @@ import rtgen     # noqa: E402  (the 64-bit guest window's runtime header)
 import logo_rgba  # noqa: E402
 import ui_fonts   # noqa: E402  (the overlays' bundled fonts, compiled in)
 import version   # noqa: E402
+import translator_files   # noqa: E402  (what the shader caches are good for)
 
 # (the SDK ps5/build-title.sh installs at its pinned revision; before it did, PS5_VulkanTemplate's)
 SDK = os.environ.get("PS5_PAYLOAD_SDK") or next(
@@ -99,7 +100,7 @@ def jobs_for(rt64, gen_dir):
                         "-DA64_WRITE_TRACK", "-I" + os.path.join(OPUS, "include"), "-I" + os.path.join(FFMPEG, "include"),
                         "-I" + os.path.join(DEPS, "zstd", "include"),
                         "-I" + os.path.join(pkg("vulkanheaders", "v1.4.345"), "include")]
-    skip = {"display.c", "mf_av1.c", "rx_nowgpu.c", "pgo_rt.c", "hos_sdl.c", "mingw_msvc_shims.c", "msvc_oldnames.c"}
+    skip = {"display.c", "mf_av1.c", "rx_nowgpu.c", "pgo_rt.c", "hos_sdl.c", "mingw_msvc_shims.c", "msvc_oldnames.c", "dav1d_av1.c"}
     host = [os.path.join(HOST, f) for f in sorted(os.listdir(HOST)) if f.endswith(".c") and f not in skip] + \
         [os.path.join(POSIX, f) for f in ("win32_posix.c", "display_sdl.c", "linux_stubs.c")] + \
         [os.path.join(PS5, f) for f in sorted(os.listdir(PS5)) if f.endswith(".c")]
@@ -123,23 +124,17 @@ def jobs_for(rt64, gen_dir):
                     "-include", "algorithm", "-include", "cstdio", "-include", "cstdlib", "-include", "cstring",
                     "-include", "functional", "-include", "string", "-include", "vector",
                     "-std=c++20", "-O2", "-DNDEBUG", "-fexceptions", "-fcxx-exceptions", "-DVK_NO_PROTOTYPES",
-                    "-DMKWVK_BUILDING", "-DHOOKSHOT_RELEASE", "-DMKWVK_INCLUDES=2",
+                    "-DMKWVK_BUILDING", "-DLONGSHOT_RELEASE", "-DMKWVK_INCLUDES=2",
                     "-I" + os.path.join(VK, "compat"), "-I" + os.path.join(ROOT, "gpu", "compat"), "-I" + os.path.join(VK, "eden"),
                     "-I" + os.path.join(ROOT, "gpu", "third_party", "suyu"),
                     "-I" + os.path.join(VK, "sirit", "include"), "-I" + os.path.join(VK, "sirit", "src"),
                     "-I" + os.path.join(spirv, "include"), "-I" + os.path.join(spirv, "include", "spirv", "unified1"),
                     "-I" + os.path.join(pkg("vulkanheaders", "v1.4.345"), "include"), "-I" + VK, "-I" + gen_dir,
-                    "-I" + os.path.join(pkg("vulkanmemoryallocator", "v3.3.0"), "include")]
-    translator = hashlib.sha1()
-    for base, _, files in sorted(os.walk(VK)):
-        if os.path.relpath(base, VK).split(os.sep)[0] in ("eden", "sirit", "compat"):
-            for f in sorted(files):
-                with open(os.path.join(base, f), "rb") as fh:
-                    translator.update(f.encode() + fh.read())
-    for n in ("vk_shader.cpp", "vk_bank.cpp", "vk_state.h", "vk_api.h"):
-        with open(os.path.join(VK, n), "rb") as fh:
-            translator.update(fh.read())
-    shader_stamp = "-DHOOKSHOT_SHADER_STAMP=0x%sull" % translator.hexdigest()[:16]
+                    "-I" + os.path.join(pkg("vulkanmemoryallocator", "v3.3.0"), "include"),
+                    # (zstd.h: the console's zstd, as the fonts and the runtime read with, not third_party/zbic's second copy)
+                    "-I" + os.path.join(DEPS, "zstd", "include")]
+    # (the stamp nx2/build.py compiles in: nx2/translator_files.py names the files it is made of)
+    shader_stamp = "-DLONGSHOT_SHADER_STAMP=0x%sull" % translator_files.stamp(VK)
     lib_digest = tree_digest(os.path.join(VK, "eden"), os.path.join(VK, "sirit"), os.path.join(VK, "compat"))
     vk_digest = tree_digest(VK, os.path.join(ROOT, "gpu", "compat"), os.path.join(ROOT, "gpu", "render"), POSIX, PS5,
                             os.path.join(ROOT, "gpu", "third_party", "suyu", "video_core", "textures"))
@@ -215,7 +210,7 @@ def main():
     os.makedirs(os.path.join(OUT, "obj"), exist_ok=True)
     rt64 = rtgen.write(os.path.join(OUT, "rt64"))
     gen_dir = os.path.join(OUT, "gen")
-    logo_rgba.write(os.path.join(gen_dir, "hookshot_logo.h"))
+    logo_rgba.write(os.path.join(gen_dir, "longshot_logo.h"))
     ui_fonts.write(os.path.join(gen_dir, "ui_fonts.cpp"))
     jobs = jobs_for(rt64, gen_dir)
     # the longest first (the lifted chunks), so no long compile is left alone at the end
@@ -242,8 +237,8 @@ def main():
     linked = subprocess.run(["bash", os.path.join(ROOT, "ps5", "tools", "link.sh"), OUT,
                              os.path.join(kit.WORK, "sa", "image", "image.bin")], env=env).returncode
     if not linked and HAS_MIHAWKGEN:   # (the network beside the game: /app0/framegen/network.fgw, vk_framegen.cpp)
-        os.makedirs(os.path.join(ROOT, "dist", "PPSA99024", "framegen"), exist_ok=True)
-        shutil.copy(MIHAWKGEN_NETWORK, os.path.join(ROOT, "dist", "PPSA99024", "framegen", "network.fgw"))
+        os.makedirs(os.path.join(ROOT, "dist", "PPSA99025", "framegen"), exist_ok=True)
+        shutil.copy(MIHAWKGEN_NETWORK, os.path.join(ROOT, "dist", "PPSA99025", "framegen", "network.fgw"))
         rev = subprocess.run(["git", "-C", MIHAWKGEN, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
         print("ps5: frame generation by PS5_MihawkGen (%s)" % (rev or "no revision"), flush=True)
     return linked

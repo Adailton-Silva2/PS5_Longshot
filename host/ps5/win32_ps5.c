@@ -570,7 +570,7 @@ void *hos_ps5_dlopen(const char *path, int mode) {
     if (!path) return MOD_SELF;
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
-    if (!strncasecmp(base, "hookshot_vk.", 12)) return MOD_VK;
+    if (!strncasecmp(base, "longshot_vk.", 12) || !strncasecmp(base, "hookshot_vk.", 12)) return MOD_VK;
     if (!strncasecmp(base, "libvulkan.so", 12) || !strcasecmp(base, "vulkan-1.dll")) return MOD_VULKAN;
     return NULL;   /* (SDL, X11, Wayland ...: not on the console; host/ps5/hos_sdl_ps5.c stands in for SDL) */
 }
@@ -778,9 +778,12 @@ __attribute__((constructor)) void hos_ps5_clock_init(void) {
 }
 
 /* The game's package on the console: HOS_PS5_NUP, else the copy an emulator there already keeps, so one 25 GB file serves
-   both: PS5_Lichii's folder, then the one it had before 2026-11-10 (when neither is there, the first, for the message). */
+   both: EglantinePS5's folder (under the name its dump has), PS5_Lichii's, then the one that had before 2026-11-10 (when
+   none is there, the first, for the message). */
 const char *hos_ps5_nup(void) {
-    static const char *const places[] = {"/data/lichii/roms/oot/oot.nup", "/data/prosperoeden/roms/oot/oot.nup"};
+    static const char *const places[] = {
+        "/data/eglantineps5/roms/The Legend of Zelda Ocarina of Time [0400486024dec000][v131072].nup",
+        "/data/eglantineps5/roms/oot.nup", "/data/lichii/roms/oot/oot.nup", "/data/prosperoeden/roms/oot/oot.nup"};
     const char *set = getenv("HOS_PS5_NUP");
     if (set && *set) return set;
     for (size_t i = 0; i < sizeof places / sizeof *places; i++)

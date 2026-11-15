@@ -220,7 +220,7 @@ run ffmpeg bash ps5/tools/build-ffmpeg.sh
 run zstd bash ps5/tools/build-zstd.sh
 
 step "the title: the game, the runtime and the renderer compiled and linked (20 to 60 minutes the first time)"
-title="$root/dist/PPSA99024"
+title="$root/dist/PPSA99025"
 if [[ -z $jobs ]]; then
     jobs=$(awk -v cores="$(nproc)" '/MemTotal/ { m = int($2 / 2097152); c = cores - 2; j = c < m ? c : m; print j < 1 ? 1 : j }' /proc/meminfo)
 fi
@@ -229,9 +229,9 @@ note "$jobs files at once (--jobs)"
     die "the title was not built; the whole log: $logs/title.log (if the compiler was killed for want of memory, use --jobs 2)"
 [[ -f $title/eboot.bin && -f $title/image.bin ]] || die "no title at $title; the log: $logs/title.log"
 if [[ -n $out ]]; then
-    rm -rf -- "$out/PPSA99024"
-    cp -r -- "$title" "$out/PPSA99024"
-    title="$out/PPSA99024"
+    rm -rf -- "$out/PPSA99025"
+    cp -r -- "$title" "$out/PPSA99025"
+    title="$out/PPSA99025"
 fi
 
 cat << EOF
@@ -239,7 +239,7 @@ cat << EOF
 Built: $title ($(du -sh -- "$title" | cut -f1))
 
 On the console, with its homebrew environment running and an FTP server on (port 2121 with ftpsrv):
-  1. Copy the whole PPSA99024 folder to /data/homebrew/PPSA99024.
+  1. Copy the whole PPSA99025 folder to /data/homebrew/PPSA99025.
   2. Copy your game file to /data/lichii/roms/oot/oot.nup (make the folders; the name must be oot.nup).
   3. Start Hookshot from the home screen (ShadowMountPlus puts it there), or from your homebrew launcher.
 image.bin and eboot.bin in that folder are made from your game: keep them on your PC and your console.

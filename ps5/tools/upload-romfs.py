@@ -1,7 +1,7 @@
 """PS5: your game's romfs from its .nup straight to the title folder on the console, over the console's FTP server
 (no 26 GB copy on the PC first). Each file is read from the package as nx2/nup.py extracts it and sent as it is read.
 
-    python3 -I ps5/tools/upload-romfs.py <your game.nup> [--host 192.168.x.y] [--port 2121] [--to /data/homebrew/PPSA99024/romfs]
+    python3 -I ps5/tools/upload-romfs.py <your game.nup> [--host 192.168.x.y] [--port 2121] [--to /data/homebrew/PPSA99025/romfs]
 
 Resumable: what was sent is listed in .local/romfs-uploaded.txt and skipped next time. Three connections: the console's
 FTP server writes about 7 MiB/s a connection and 22 MiB/s in all (PS5_PayloadSDK platform/docs/PROBE.md).
@@ -35,7 +35,7 @@ def main():
     ap.add_argument("nup")
     ap.add_argument("--host", default=os.environ.get("PS5_HOST"))
     ap.add_argument("--port", type=int, default=2121)
-    ap.add_argument("--to", default="/data/homebrew/PPSA99024/romfs")
+    ap.add_argument("--to", default="/data/homebrew/PPSA99025/romfs")
     ap.add_argument("--connections", type=int, default=3)
     a = ap.parse_args()
     if not a.host:
