@@ -150,6 +150,16 @@ frame in the Market on an RTX 3090, for a few more objects left out).
 `RX_VK_OCC_LOG` (set) logs every ~5,000 reports how many read 0, how many were left visible and why, how late they
 were written and what the reading cost;
 `RX_VK_OCC_DRY` (set, a test) makes and reads the queries but leaves the reports at 4096, to time the queries alone.
+With Intel's Windows driver on a discrete GPU (Arc) the counts are read from a copy: at the end of each recording the
+GPU copies the results of the queries it ran into a buffer in host memory (`vkCmdCopyQueryPoolResults`), and the reads
+are plain memory reads. Read from the query pool (`vkGetQueryPoolResults`), each query cost ~3.4 µs on an Arc B580
+(driver 101.9154): 7.4 ms of the render thread's 28.8 ms frame in the Market, where the copy made it 45.8 fps from 34.8
+on average (3 interleaved runs each, the median), for ~2 ms more GPU time a frame (12.2 ms from 10.2: ~1,400 queries
+copied a frame). A query the copy found not done, or one whose recording ended without a copy, is read from the pool once
+its submission is done, as before. Elsewhere the pool is read, as before: an iGPU is mostly held back by the GPU, where
+the copies' GPU time would cost frames, and other drivers' pool reads were not measured. `RX_VK_OCC_COPY=1` copies on
+any GPU, `RX_VK_OCC_COPY=0` reads from the pool; a device without coherent host memory and the parallel replay
+(`RX_VK_PARALLEL`) read from the pool.
 
 A CPU read of GPU results waits for the write-back of the submission that writes them (`invalidate`, `vk_replay.cpp`).
 `RX_VK_READBACK_LATE=<rule>[,<rule>...]` names the ranges read without that wait, which then hold the frame before's
