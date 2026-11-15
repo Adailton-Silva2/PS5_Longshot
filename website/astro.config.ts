@@ -33,6 +33,7 @@ export default defineConfig({
     sidebar: [
       { label: 'Get started', items: [
         { label: 'Install', slug: 'install' },
+        { label: 'Steam Deck', slug: 'install/steam-deck' },
         { label: 'System requirements', slug: 'requirements' },
         { label: 'Settings', slug: 'settings' },
         { label: 'Updates & saves', slug: 'saves' },
