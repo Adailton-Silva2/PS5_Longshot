@@ -38,6 +38,7 @@ export default defineConfig({
       { label: 'Development', items: [
         { label: 'Progress', slug: 'progress' },
         { label: 'Contributing', slug: 'contributing' },
+        { label: 'Scrub a save', slug: 'saves/scrub' },
         { label: 'Source code ↗', link: repository },
       ] },
       { label: 'About', items: [
