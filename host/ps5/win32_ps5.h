@@ -56,4 +56,31 @@ __attribute__((noreturn)) void hos_ps5_exit(int code);
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+/* std::atomic_ref, which the SDK's C++ library does not have and the Vulkan back end uses on plain words and handles
+   (gpu/vk/vk_draw.cpp, vk_memory.cpp, drawn_writeback.h): the compiler's atomic builtins on the object itself, for what
+   the back end calls. This header comes before every other in those files (ps5/build.py's -include). */
+#include <atomic>
+#include <version>
+#ifndef __cpp_lib_atomic_ref
+namespace std {
+template <class T> struct atomic_ref {
+    explicit atomic_ref(T &object) : p(&object) {}
+    T load(memory_order order = memory_order_seq_cst) const {
+        T v;
+        __atomic_load(p, &v, (int)order);
+        return v;
+    }
+    void store(T v, memory_order order = memory_order_seq_cst) const { __atomic_store(p, &v, (int)order); }
+    bool compare_exchange_strong(T &expected, T desired, memory_order order = memory_order_seq_cst) const {
+        return __atomic_compare_exchange(p, &expected, &desired, false, (int)order,
+                                         order == memory_order_release ? (int)memory_order_relaxed
+                                         : order == memory_order_acq_rel ? (int)memory_order_acquire : (int)order);
+    }
+    T *p;
+};
+}   // namespace std
+#endif
+#endif
 #endif

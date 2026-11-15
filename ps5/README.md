@@ -3,7 +3,11 @@
 Private working repository for porting [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) (static
 recompilation of The Legend of Zelda: Ocarina of Time for Switch 2, the continuation of Hookshot) to the PS5.
 
-Status: **nothing ported yet.** This repository holds the starting points; the port itself has not begun.
+Status (2026-11-15, branch `ps5/merge-hookshot-port`): PS5_Hookshot's port is merged onto Longshot and the whole Vulkan
+back end (205 files) compiles for the console. The game's translation to C, the runtime's compile, the link and a console
+run are still to do: the lift was stopped for want of memory on the build PC each time (see "Building" below).
+
+The title is **PPSA99025, Longshot**, so PS5_Hookshot's PPSA99024 on a console is left alone.
 
 ## Branches
 
@@ -35,23 +39,33 @@ PS5_Vulkan builds RADV from PS5_Mesa and needs the payload SDK. PS5_Hookshot bet
 Headers `gpu/vk` was compiled with there: Vulkan-Headers `v1.4.345`, SPIRV-Headers `vulkan-sdk-1.4.341.0`,
 VMA `v3.3.0`.
 
-## Where to start
+## What the merge decided
 
-PS5_Hookshot's port is 18 commits by Mihawk on top of Hookshot `2877284a`, which is an ancestor of Longshot's `main`
-(Longshot is 988 commits past it). Against that base the port changes 51 files, about 5,100 added lines: `host/ps5/`,
-`ps5/` (build script, tools, tests, `sce_sys`), and edits in `gpu/vk/` and `host/`.
+`git merge ref/ps5-hookshot` stopped on 13 files. What was not a plain "both sides":
 
-A trial `git merge ref/ps5-hookshot` into `main` on 2026-11-15 added the new folders cleanly and stopped on 13 files:
+- `gpu/vk/vk_progcache.cpp`: Longshot moved the program cache out of `vk_shader.cpp`. The port's held writes during the
+  preparation (`kDiskHold`: a write into the title folder costs ~60 ms) are here now, and every reader flushes first.
+- `gpu/vk/vk_texture.cpp`: the port aged textures in milliseconds; Longshot's compaction reads the age in presents. The
+  age stays in presents, 30 on the console (about the port's one second) and 60 elsewhere.
+- `gpu/vk/vk_draw.cpp`: Longshot's pipeline cache save is kept; the port's lines timing the save are left out.
+- `gpu/vk/vk_framegen.cpp`: PS5_MihawkGen's frames come first, before FSR 3.1's.
+- `host/posix/win32_posix.c`: a new thread takes the process's affinity through `scePthreadSetaffinity`.
+- `host/ps5/win32_ps5.h`: a small `std::atomic_ref`, which the SDK's C++ library lacks and Longshot's back end uses.
+- `host/ps5/hos_sdl_ps5.c`: stand-ins for the calls `hos_sdl.h` gained (text input, clipboard, Steam pads).
+- The game is looked for in `/data/eglantineps5/roms` first, under the name the dump has.
 
-- `gpu/vk/`: `vk_draw.cpp`, `vk_framegen.cpp`, `vk_jobs.cpp`, `vk_loader.h`, `vk_main.cpp`, `vk_shader.cpp`,
-  `vk_texture.cpp`, `vk_texture.h`, `vk_vma.cpp`
-- `host/`: `hos_main.c`, `hos_thread.c`, `posix/win32_posix.c`
-- `.gitignore`
+## Building
 
-It also brings back two `.github/workflows` files that Longshot deleted: drop them. The merge was not kept.
+`ps5/build-title.sh` is still PS5_Hookshot's (it clones sibling projects and names Hookshot); until it is rewritten, the
+steps by hand, with the dependencies of an earlier PS5_Hookshot build linked into `.local/`:
 
-PS5_Hookshot's `ps5/build-title.sh` clones PS5_Vulkan and the other projects as sibling folders; point it at the
-submodule instead (`PS5_VULKAN=ps5/deps/PS5_Vulkan`).
+```
+export PS5_VULKAN=<a built PS5_Vulkan at 7f492b4c> PS5_MIHAWKGEN=<PS5_MihawkGen>
+LONGSHOT_LIFT_JOBS=1 OOT_WORK=$PWD/work/lift python -I nx2/lift.py --standalone --write --exefs <exefs> --work $PWD/work/lift
+python -I ps5/build.py --jobs N
+```
+
+The lift holds about 6 GB and more as it writes; each compile of a lifted chunk about 1.4 GB.
 
 ## Test console
 
