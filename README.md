@@ -664,20 +664,27 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   down to 15 fps.
 - **FPS counter** shows in a corner (**FPS counter position**; at the top right while the menu is open), at one of
   five levels. **FPS** is the number alone (an options file's old On); with frame generation on, it also shows the
-  game's own rate and who makes the frames: `Base 60, DLSS FG` (NVIDIA DLSS Frame Generation), `FSR 3.1 FG` or `Built-in FG`. **Frame time** adds the game's frame time and its 1% low (the rate of the slowest 1% of frames over
-  the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
+  game's own rate and who makes the frames: `Base 60, DLSS FG` (NVIDIA DLSS Frame Generation), `FSR 3.1 FG` or `Built-in FG`. **Frame time** adds the game's frame time and its 1% low (the mean time of the slowest 1% of frames
+  over the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
   amber under it and red under two thirds of it. (The cap's rate is the display's refresh instead with V-Sync On when
   that is slower; with Uncapped and V-Sync not On there is no line, and the colours are against 60.) **Graph** adds
   the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
   dashed line at the Game frame rate cap's frame time and a red mark over frames that took more than twice it; its
-  scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** adds
-  where the frame's time went on the game's presenting thread, as a bar and in numbers: the game's own code (Game),
-  recording and submitting the GPU's work (Renderer), waiting for the GPU (GPU wait), and waiting for the frame's turn
-  (Pacing: the frame rate cap, vsync, Reflex); then the GPU's own time per frame, and the shaders built and draws left
-  out in the last 4 seconds (red marks on the graph where they happened, the usual cause of a stutter). **Dev** adds the
+  scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** draws
+  each of the graph's frames as the parts its time went to, stacked, with their values under the graph; the values add up
+  to the frame time: the game's own code (Game), the renderer's part on the game's thread (Renderer: handing
+  over the frame's work, or all of its recording with Threaded rendering off), then the waits under
+  Waiting on: for work the render thread had not recorded yet (Render thread), for the GPU to finish work the game waits
+  on (GPU fence) and for the GPU at the present (GPU present), and last the frame's turn (Pacing: the frame rate cap,
+  vsync, Reflex). The colours keep one meaning: blue the game's work, red the GPU, purple the render thread, grey pacing
+  and idle. With Threaded rendering on, a second lane under the graph shows the render thread's own frame in parallel,
+  on the same scale: recording, waiting for the parallel replay's workers and for a GPU slot, and idle. Then the GPU's
+  own time per frame and its share of the frame (it runs in parallel too), and the shaders built and draws left out in
+  the last 4 seconds (red marks on the graph where they happened, the usual cause of a stutter). **Dev** adds the
   renderer's own numbers, for debugging and bug reports: video memory used of what the driver allows (red past it), the
   textures held and their memory, draws, dispatches and render passes a frame, draws skipped a frame (red when any),
-  texture uploads a second and the pipelines built since the start.
+  texture uploads a second and the pipelines built since the start, and under the frame time three lines: the CPU, the
+  GPU and its driver.
 - **Volume** scales the game's whole sound, on top of the game's own sound settings and Windows' volume. Its steps
   follow a curve so they sound about even: 50% is a quarter of the level (-12 dB). **Mute in background** silences the
   game while another window has the focus; an overlay such as Steam's or Discord's does not count as another window
