@@ -515,9 +515,11 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   file list as soon as the game has a save. Until you have saved once, it leaves the title screen alone, so a new game can
   still be started. It applies after a restart; turn it off to watch the intro and use the title.
 - **GPU device** matters on a PC with more than one graphics card (a laptop's integrated and dedicated GPUs, or a
-  second card for Lossless Scaling). Auto prefers a dedicated one, and only cards with Vulkan 1.3 are listed.
-  `longshot_log.txt` lists every card as `vk: device <n>`; `RX_VK_DEVICE=<n>` chooses one for a single run and wins
-  over the menu.
+  second card for Lossless Scaling). Auto prefers a dedicated one, and only cards with Vulkan 1.3 are listed. The card
+  you choose is saved as that card (`gpu_device_id=` in `longshot_options.ini`), not its place in the list, so it stays
+  chosen when the list's order changes (a driver update, a card added, an update into a new folder). A chosen card that
+  is not there (an eGPU unplugged) is Auto until it is back. `longshot_log.txt` lists every card as `vk: device <n>`;
+  `RX_VK_DEVICE=<n>` chooses one for a single run and wins over the menu.
 - **Frame generation** makes extra frames between the game's own. It adds a little input delay, and fast motion can
   show artifacts. The renderer's own interpolation makes the frames; at 2x, AMD FSR 3.1's frame interpolation can make
   it instead with `RX_VK_FSR_FG=1` (below: it moves the HUD with the scene, so it is not the default). **Frame pacing** shows frames at an even interval: less stutter, up to one frame of delay. It paces
