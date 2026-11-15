@@ -3,9 +3,12 @@
 Private working repository for porting [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) (static
 recompilation of The Legend of Zelda: Ocarina of Time for Switch 2, the continuation of Hookshot) to the PS5.
 
-Status (2026-11-15): PS5_Hookshot's port is merged onto Longshot, the title builds, and it runs on the console: the
-game's logos, the opening movie and the title screen at 60 fps for two runs of 110 and 150 s, ended cleanly. Not tried
-yet: starting a game, play, saves, sound by ear. `ps5/build-title.sh` is still PS5_Hookshot's (see "Building").
+Status (2026-11-16): PS5_Hookshot's port is merged onto Longshot, the title builds, and it plays on the console.
+A new game runs from the title screen through the opening to Link's house (10 minutes, autosave made); a later start
+loads that autosave, walks out of the house and around Kokiri Forest. Frame rates the log gives: 59.9 at the title and
+in movies, about 40 in the opening's scenes, 50 in Link's house, 35 in the forest (measured with a screenshot taken
+every 120 presents). No crash or GPU fault in five runs. Not tried: beyond the forest, sound by ear, a real controller.
+`ps5/build-title.sh` is still PS5_Hookshot's (see "Building").
 
 The title is **PPSA99025, Longshot**, so PS5_Hookshot's PPSA99024 on a console is left alone.
 
@@ -74,6 +77,11 @@ Install and run (the control payload `ps5vkctl` on the console, port 9111):
 PS5_HOST=192.168.0.190 python3 $PS5_VULKAN/tools/deploy-title-folder.py dist/PPSA99025
 PS5_HOST=192.168.0.190 python3 ps5/tools/run.py NAME --seconds 150      # klog in work/runs/NAME.klog
 ```
+
+`ps5/tools/to-kokiri.sh NAME` starts a new game and presses A through the opening. To steer a run by hand, start it with
+`--env HOS_INPUT_LIVE=/app0/input.txt --env RX_VK_SHOTS=/app0/shots --env RX_VK_SHOT_EVERY=120`, then
+`ps5/tools/live.py press '0:A,5:LDOWN/2500'` and `ps5/tools/live.py shot`. From the autosave in Link's house,
+`LDOWN/2500` walks out into the forest.
 
 ## Test console
 
