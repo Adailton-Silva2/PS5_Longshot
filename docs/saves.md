@@ -103,7 +103,7 @@ The emulator's save is backed up before it's replaced. The launcher doesn't expo
 | Windows, pictured nightly Launcher, installed | `%APPDATA%\Longshot\save\` | `%LOCALAPPDATA%\Longshot\oot-save-backups` |
 | Windows, pictured nightly Launcher, portable | `LongshotLauncher-data\user\save\` beside the launcher | `LongshotLauncher-data\save-backups\` beside the launcher |
 | Windows, Launcher v1.0.0-rc.3 or game started directly | `<game folder>\user\save\` (the game folder is `%USERPROFILE%\Games\Longshot` unless you chose another) | `%LOCALAPPDATA%\Longshot\oot-save-backups`; a portable launcher's backups are in `LongshotLauncher-data\save-backups\` beside it |
-| Linux and Steam Deck | `~/.local/share/longshot/save/` | `~/.local/share/oot-save-backups` |
+| Linux and Steam Deck | `~/.local/share/longshot/save/` | `~/.local/share/longshot/save-backup/` (a launcher from before [LongshotLauncher#80](https://git.magicbean.dev/MagicBeanDev/LongshotLauncher/pulls/80), and `scripts/longshot_saves.py`: `~/.local/share/oot-save-backups`) |
 
 To keep your own copy, copy the save folder while the game is closed. Keep save files private.
 
