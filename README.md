@@ -689,8 +689,9 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   Auto never applies the mono average. Saved `audio_output` values remain 0 Auto, 1 Stereo, 2 5.1; Mono is 3.
   For one run, `HOS_AUDIO_CHANNELS=2` or `6` chooses the channel layout over the menu (6 leaves Mono inactive).
 - **Microphone** is what the ocarina hears when the game's own microphone option is on (an instrument, or humming).
-  Default follows Windows' default recording device; the list shows each microphone by name, and a change applies at
-  once. A chosen microphone that is unplugged stays chosen (shown as not connected): Default stands in until it is
+  Default follows Windows' default recording device; the list shows up to 64 recording devices by name, and a change
+  applies at once. Physical and virtual inputs share that limit; devices after the first 64 reported by the audio backend
+  are not listed. A chosen microphone that is unplugged stays chosen (shown as not connected): Default stands in until it is
   back. On Linux (SDL2) two microphones with the same name cannot be told apart: the first is used. Windows must allow desktop apps to use the microphone
   (Settings, Privacy & security, Microphone). `HOS_MIC_LOG=1` logs what the game reads, a line a second.
 - **Game language** is the game's own text, `language.txt` in the game folder: the row writes it once you leave the row,
