@@ -413,6 +413,7 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
     const uint32_t flags = *(const uint32_t*)o.data();
     std::vector<uint8_t> compressed;
     bool compressed_ok = false;
+#ifndef __PROSPERO__   // (PS5: the console's zstd only reads; records are kept as they are there)
     if (disk_zstd && o.size() >= 256) {
         compressed.resize(ZSTD_compressBound(o.size()));
         const size_t n = ZSTD_compress(compressed.data(), compressed.size(), o.data(), o.size(), 3);
@@ -421,6 +422,7 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
             compressed_ok = true;
         }
     }
+#endif
     const uint64_t stored = compressed_ok ? 8 + (uint64_t)compressed.size() : (uint64_t)o.size();
     const uint32_t kind = flags | (compressed_ok ? kCompressedKind : 0);
     const size_t head_size = disk_zstd ? kZstdHead : 16;
