@@ -3402,16 +3402,13 @@ bool slow_desc_timing() {
 }
 
 // (longshot) one switch read two ways, like the Robust buffers row of vk_main.cpp: the environment variable says it for test
-// runs (any value, 0 off); else the row's line in longshot_options.ini beside the game; else off.
+// runs (any value, 0 off); else the row's line in longshot_options.ini in the user folder; else off.
 /// (the row's value in longshot_options.ini, read before the menu has loaded it; the environment's switch first. def: no
 /// file, no line, or a file older than options_version since (one whose line was only ever the old default, vk_menu.cpp
 /// load))
 bool menu_env_on(const char* env_name, const char* ini_key_name, bool def = false, int since = 0) {
     if (const char* e = getenv(env_name)) return !env_value_off(e);   // (longshot_env.h: the switches' one rule)
-    char exe[MAX_PATH];
-    const DWORD n = game_module_path(exe, MAX_PATH);   // (the game folder, not bin beside the launcher: vk_paths.h)
-    std::string ini(exe, n);
-    ini = ini.substr(0, ini.find_last_of("\\/") + 1) + "longshot_options.ini";
+    const std::string ini = options_path();   // (vk_paths.h)
     const size_t klen = strlen(ini_key_name);
     int v = -1, version = 0;
     if (FILE* f = fopen(ini.c_str(), "r")) {
@@ -9385,8 +9382,9 @@ bool predict_pending() {
     fclose(f);
     return true;
 }
-// (longshot) Compile shaders, the Builder's, make_game.py's and the launcher's choice (compile_shaders= in longshot_options.ini:
-// 0 Most, the default; 1 All; any other number is Most). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
+// (longshot) Compile shaders, the Builder's, make_game.py's and the launcher's choice (compile_shaders= in the game folder's
+// longshot_options.ini, where make_game.py writes it: the build's, not the player's settings in the user folder, vk_paths.h
+// options_path; 0 Most, the default; 1 All; any other number is Most). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
 // 3090 with 24 threads: 415 and 413 s against 292 s without them), for pipelines play almost never draws ("vk: predicted
 // pipelines met in play"). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
 // Asked only where a prediction would run: on Most it says so in the log, and takes away what an earlier preparation on All left

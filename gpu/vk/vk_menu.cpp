@@ -1864,12 +1864,7 @@ bool env_holds(const int* value) {
     return false;
 }
 Out player_custom_output{0, 0};   // (the player's own Output resolution size when HOS_OUTPUT_RES names another of its own)
-std::string ini_path() {
-    char exe[MAX_PATH];
-    const DWORD n = game_module_path(exe, MAX_PATH);
-    std::string dir(exe, n);
-    return dir.substr(0, dir.find_last_of("\\/") + 1) + "longshot_options.ini";
-}
+std::string ini_path() { return options_path(); }   // (the user folder's when --user names one: vk_paths.h)
 const char* ini_key(const Row& r) {
     if (r.value == &opts.output_res) return "output_res";   // (host/nn_applet.c reads it at the start)
     if (r.value == &opts.vsync) return "vsync";
@@ -3278,8 +3273,7 @@ void bug_report_save() {
     in.version = LONGSHOT_VERSION;
     in.gpu = device_report_text();
     in.options = changed_rows_text(in.pc_options);
-    const std::string ini = ini_path();
-    in.game_dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+    in.game_dir = game_folder_path();   // (its logs/ and bug-reports/: vk_paths.h)
     in.log = [](const char* line) { logf("%s", line); };
     in.ask_picture = bug_report_picture;
     logf("menu: bug report asked for");

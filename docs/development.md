@@ -102,7 +102,8 @@ trace; `HOS_TRACE`'s calls are trace. `tests/test_log_levels.py` checks the tags
 ## Switches for testing and debugging
 
 The running game reads its switches from the environment or from `longshot_env.txt` beside `image.bin` (one
-`NAME=VALUE` a line, `#` for notes; `HOS_ENV_FILE=<path>` reads that file instead). The environment goes first: a name
+`NAME=VALUE` a line, `#` for notes; `HOS_ENV_FILE=<path>` reads that file instead; `HOS_OPTIONS_FILE=<path>`, from the
+environment only, does the same for the settings, `longshot_options.ini`, so a scripted run leaves the player's as they are). The environment goes first: a name
 already set when the game starts keeps its value and the file's line for it is left out (the log says so). A switch
 that stands in for a menu row lasts for its run; the options file keeps the player's value (`env_override` in
 `gpu/vk/vk_menu.cpp`). Switches the shader translation reads are part of the program cache's stamp
@@ -863,7 +864,7 @@ at 1440p with DLSS shares few pipelines with one recorded at 360p.
 Players send theirs to issue #14 with **Save my pipeline list** (the menu's Debug tab, under Developer: `gpu/vk/pipeline_share.h` and
 `vk_menu.cpp` `share_pipeline_list`; from the command line: `nx2/pipeline_share.py`, `--json` for a program that runs it). It checks the list as `pipeline_states.py --check` does and writes
 `longshot-pipelines-<date>.zip` to the Downloads folder with exactly two files, the list and `longshot_pipeline_report.txt`
-(the issue's template filled in from the run or from the game folder's log and `longshot_options.ini`), then copies the
+(the issue's template filled in from the run or from the game folder's log and the `longshot_options.ini` that log names), then copies the
 template, shows the folder and opens the issue; never with `HOS_HEADLESS`. The list is zipped as the game wrote it, compute
 records included (the report's `Pipelines` line counts them); `pipeline_states.py --check` and `add` take a sent list only
 when it is exactly a list (`read_sent`). `tests/test_pipeline_share.py` checks the zip,
@@ -954,7 +955,12 @@ route, with a counting renderer (`RX_VK_PGO=gen`): each game's counters, from co
 A new row on the Graphics, Audio, Gameplay or Controls tab needs a line in the README's option table too, in the
 menu's order, with its choices and default: `tests/test_readme_menu_rows.py` fails without it.
 
-`longshot_options.ini`, in the game folder, holds the Insert menu's rows as `<key>=<number>`: the row's name in lower
+`longshot_options.ini` is in the user folder the game is given, with the saves, so every build the launcher starts reads the
+same one (`host/options_path.c`: `HOS_OPTIONS_FILE`, else `--user`'s folder, the launcher's `%APPDATA%\Longshot` on Windows,
+else beside the game, as before: RecompLauncher sets its rows there and updates in place). The host chooses it at the start and
+gives the renderer its path (`MkwVkHost.options_path`; `gpu/vk/vk_paths.h` `options_path`); the log's `options: the settings
+file is <path>` says which. A game folder's file from a build before this is copied there once, when the user folder has none.
+Only `compile_shaders=`, the build's choice, stays in the game folder's file, where `make_game.py` writes it. The file holds the Insert menu's rows as `<key>=<number>`: the row's name in lower
 case with `_` for spaces (`frame_generation=2`, `invert_camera_x=1`), except Output resolution, which is `output_res`.
 `gpu/vk/vk_menu.cpp` writes the whole file at every change (`save`), with `options_version=5`,
 `microphone_device=<name>` when a microphone is chosen by name, and the controls (`pad_<button>`, `key_<button>` and `toggle_<button>`:

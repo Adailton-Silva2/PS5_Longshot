@@ -253,7 +253,7 @@ The build reads your game and never changes it.
 | Your saves | `user` in the game folder | `~/.local/share/longshot` |
 | The launcher, each version's builder and its tools (`toolchains`), the build files (`work`) | `%LOCALAPPDATA%\LongshotLauncher` (the installed program in `%LOCALAPPDATA%\Programs\LongshotLauncher`; the portable one's data in `LongshotLauncher-data` beside it) | `~/.local/share/longshot/launcher` (the portable AppImage's in `<AppImage>.home` beside it) |
 | A builder without the launcher (`--cli`) and its tools | `%LOCALAPPDATA%\LongshotBuilder` | `~/.local/share/longshot/builder` and `~/.cache/longshot-builder` |
-| The in-game menu's choices | `longshot_options.ini` in the game folder | `longshot_options.ini` in the game folder |
+| The in-game menu's choices and your controls | `longshot_options.ini` in `%APPDATA%\Longshot` when the launcher starts the game, the same for every version (a portable launcher's in `LongshotLauncher-data\user`); in the game folder when you start the game yourself | `longshot_options.ini` in the game folder |
 | The shader and pipeline caches, and the logs | `cache` and `logs` in the game folder | `cache` and `logs` in the game folder |
 
 - **Caches and logs:** the game keeps its shader and pipeline caches in the game folder's `cache` folder (several GB, made
@@ -401,7 +401,8 @@ Controls, the Teleport list, the inventory), and B goes back or closes the menu:
 on (with the Nintendo layout, A is the right face button). The mouse is free while the menu is open: click a tab, click a row's name to choose it (its
 value stays), click the left or right half of a value to lower or raise it, drag a slider, turn the wheel to scroll the rows (it never changes a value), and right-click to go back. The
 button prompts at the bottom show the keys or the controller's buttons, whichever you used last. Your choices are saved
-in `longshot_options.ini` in the game folder.
+in `longshot_options.ini`: with your saves when the launcher starts the game on Windows, so every version keeps them, else in
+the game folder ([Where the files go](#where-the-files-go)).
 
 The menu, the FPS counter and the start-up screen are drawn in the style of the game's own menus. They use the game's
 own menu font, read into memory from your game files (the romfs folder the game runs from) the first time one of them is
