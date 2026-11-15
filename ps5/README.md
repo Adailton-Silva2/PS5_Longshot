@@ -3,9 +3,9 @@
 Private working repository for porting [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) (static
 recompilation of The Legend of Zelda: Ocarina of Time for Switch 2, the continuation of Hookshot) to the PS5.
 
-Status (2026-11-15, branch `ps5/merge-hookshot-port`): PS5_Hookshot's port is merged onto Longshot and the whole Vulkan
-back end (205 files) compiles for the console. The game's translation to C, the runtime's compile, the link and a console
-run are still to do: the lift was stopped for want of memory on the build PC each time (see "Building" below).
+Status (2026-11-15): PS5_Hookshot's port is merged onto Longshot, the title builds, and it runs on the console: the
+game's logos, the opening movie and the title screen at 60 fps for two runs of 110 and 150 s, ended cleanly. Not tried
+yet: starting a game, play, saves, sound by ear. `ps5/build-title.sh` is still PS5_Hookshot's (see "Building").
 
 The title is **PPSA99025, Longshot**, so PS5_Hookshot's PPSA99024 on a console is left alone.
 
@@ -65,7 +65,15 @@ LONGSHOT_LIFT_JOBS=1 OOT_WORK=$PWD/work/lift python -I nx2/lift.py --standalone 
 python -I ps5/build.py --jobs N
 ```
 
-The lift holds about 6 GB and more as it writes; each compile of a lifted chunk about 1.4 GB.
+The lift holds about 6 GB and more as it writes (it was stopped for want of memory with less than ~10 GB free); each
+compile of a lifted chunk about 1.4 GB. The compile took 40 minutes at 6 jobs.
+
+Install and run (the control payload `ps5vkctl` on the console, port 9111):
+
+```
+PS5_HOST=192.168.0.190 python3 $PS5_VULKAN/tools/deploy-title-folder.py dist/PPSA99025
+PS5_HOST=192.168.0.190 python3 ps5/tools/run.py NAME --seconds 150      # klog in work/runs/NAME.klog
+```
 
 ## Test console
 

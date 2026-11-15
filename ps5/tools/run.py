@@ -127,7 +127,7 @@ def main():
     # the game's log is in klog on the console (standard error: host/hos_main.c), each line after the title's prefix
     game = b""
     for line in open(log, "rb"):
-        at = line.find(b"[Hookshot] ")
+        at = line.find(b"[Longshot] ")
         if at >= 0:
             game += line[at + 11:]
     open(os.path.join(runs, a.name + ".log"), "wb").write(game)
