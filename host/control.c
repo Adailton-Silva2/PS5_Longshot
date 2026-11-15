@@ -2087,6 +2087,7 @@ static void transport_wait(int ms) {
     if (fds[0].revents & POLLIN) {
         const int fd = accept4(listen_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (fd < 0) return;
+#ifndef __PROSPERO__   /* (PS5: no SO_PEERCRED, and one user: the title's own) */
         struct ucred cred;
         socklen_t len = sizeof cred;
         if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) || cred.uid != getuid()) {
@@ -2094,6 +2095,7 @@ static void transport_wait(int ms) {
             close(fd);
             return;
         }
+#endif
         int slot = -1;
         for (int i = 0; i < CTL_CONNS && slot < 0; i++)
             if (!G.conns[i].used) slot = i;

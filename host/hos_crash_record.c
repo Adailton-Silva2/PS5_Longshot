@@ -250,6 +250,9 @@ static int safe_read(uintptr_t address, void *out, size_t size) {
 #ifdef _WIN32
     SIZE_T n = 0;
     return ReadProcessMemory(self_process, (const void *)address, out, size, &n) && n == size;
+#elif defined(__PROSPERO__)   /* (PS5: no process_vm_readv; nothing is read that might not be there) */
+    (void)out;
+    return 0;
 #else
     struct iovec local = {out, size}, remote = {(void *)address, size};
     return syscall(SYS_process_vm_readv, (long)session.pid, &local, 1UL, &remote, 1UL, 0UL) == (ssize_t)size;

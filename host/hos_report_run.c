@@ -8,7 +8,13 @@
 #else
 #include <errno.h>
 #include <sched.h>
+#include <sys/types.h>
+#ifdef __PROSPERO__   /* (PS5: the C library's own generator; no getrandom there) */
+#include <stdlib.h>
+static ssize_t getrandom(void *buf, size_t n, unsigned flags) { (void)flags; arc4random_buf(buf, n); return (ssize_t)n; }
+#else
 #include <sys/random.h>
+#endif
 #endif
 
 const char *hos_report_run_id(void) {
