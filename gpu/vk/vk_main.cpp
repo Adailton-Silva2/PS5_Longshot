@@ -11,6 +11,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <new>
 #include <thread>
 #include <vector>
 #ifndef _WIN32
@@ -167,7 +168,11 @@ bool create_instance() {
         vkEnumerateInstanceExtensionProperties(nullptr, &n, nullptr);
         std::vector<VkExtensionProperties> all(n);
         vkEnumerateInstanceExtensionProperties(nullptr, &n, all.data());
+#ifdef __PROSPERO__   // (the console: one display, a plane surface on it, host/ps5/hos_sdl_ps5.c)
+        for (const char* want : {"VK_KHR_display"})
+#else
         for (const char* want : {"VK_KHR_xlib_surface", "VK_KHR_xcb_surface", "VK_KHR_wayland_surface"})
+#endif
             if (has_extension(all, want)) exts[n_exts++] = want;
     }
 #endif
@@ -270,6 +275,23 @@ bool pick_device() {
     }
     dev.physical = all[best];
     vkGetPhysicalDeviceProperties(dev.physical, &dev.props);
+    // (PS5) Storage buffers bound from offsets that are multiples of 256, not of the 4 the console's RADV reports. OoT's culling
+    // keeps two sets of lists, one a frame; the pass that rebuilds a set reads a table through a pointer at +0x9c0 of a page,
+    // bound from there in one of the two sets only, and on the console that set stayed empty: its foliage, grass and falling
+    // leaves were drawn every other frame (measured against this game built for a PC: the same dispatch with the same inputs
+    // filled the list there). Bound from +0x900 the list fills. Why is not established: the driver reads and writes buffers
+    // bound at these offsets correctly in a test of its own, so the cause is likely what the program reads just below +0x9c0,
+    // which the wider binding now holds. The shaders take the rest of an address themselves (Profile::min_ssbo_alignment).
+    // RX_VK_SSBO_ALIGN=<bytes>: another, on any GPU
+    {
+#ifdef __PROSPERO__
+        VkDeviceSize want = 256;
+#else
+        VkDeviceSize want = 0;
+#endif
+        if (const char* e = getenv("RX_VK_SSBO_ALIGN")) want = (VkDeviceSize)atoll(e);
+        dev.props.limits.minStorageBufferOffsetAlignment = std::max(dev.props.limits.minStorageBufferOffsetAlignment, want);
+    }
     vkGetPhysicalDeviceMemoryProperties(dev.physical, &dev.memory);
     return true;
 }
@@ -633,8 +655,8 @@ bool create_device() {
     }
     mesh.multiviewMeshShader = mesh.primitiveFragmentShadingRateMeshShader = VK_FALSE;   // (not used)
     dev.mesh_shader = dev.mesh_shader && mesh.meshShader && mesh.taskShader;
-    // (task and mesh shader counts in pipeline statistics, a feature of their own: RADV has it off on RDNA2, and a query
-    // pool made with those counts all the same can hang the GPU)
+    // (task and mesh shader counts in pipeline statistics, a feature of their own: RADV has it off on RDNA2 and on the PS5,
+    // where a query pool made with those counts all the same hung the GPU at its first query)
     dev.mesh_queries = dev.mesh_shader && mesh.meshShaderQueries;
     // (longshot, issue 640) RDNA1 and older GPUs: no mesh shaders, but task and mesh programs run as compute shaders
     // that write their vertices to buffers, drawn through an ordinary graphics pipeline. It needs buffer device addresses.
@@ -1603,6 +1625,33 @@ __declspec(dllexport)
 #else
 __attribute__((visibility("default")))
 #endif
+#ifdef __PROSPERO__
+// (PS5) operator new with no memory waits for some, as a game page does (host/ps5/win32_ps5.c commit_units_wait): the game's
+// pages, the heap and the renderer share one pool, and a burst of the game's takes the last of it for a moment. A
+// std::bad_alloc nothing caught, in capture_make on the game's submit thread, ended the title in Hyrule Castle Town with
+// 150-300 MiB free seconds before. After 10 s of one wait the allocation throws as before
+extern "C" int sceKernelUsleep(unsigned microseconds);
+extern "C" void hos_ps5_klog_now(const char* fmt, ...);
+extern "C" void ps5_heap_trim(void) __attribute__((weak));   // (PS5_PayloadSDK 55a2de0 and later)
+static void ps5_new_waits() {
+    using clk = std::chrono::steady_clock;
+    static thread_local clk::time_point first, last;
+    const auto now = clk::now();
+    if (now - last > std::chrono::milliseconds(200)) {   // (a new wait: the last one ended, with memory or with a throw)
+        first = now;
+        static std::atomic<int> told{0};
+        if (told++ < 20) hos_ps5_klog_now("[ps5] operator new: no memory: waiting for some");
+        if (ps5_heap_trim) ps5_heap_trim();
+    }
+    if (now - first > std::chrono::seconds(10)) {
+        last = {};
+        throw std::bad_alloc();
+    }
+    sceKernelUsleep(20000);
+    last = clk::now();
+}
+#endif
+
 const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     using namespace mkwvk;
     if (!h) return nullptr;
@@ -1611,6 +1660,9 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         return nullptr;
     }
     host = h;
+#ifdef __PROSPERO__
+    std::set_new_handler(ps5_new_waits);
+#endif
     if (!load_global()) {
 #ifdef _WIN32
         logf("vk: load_global failed (Vulkan loader library or vkCreateInstance missing)");

@@ -88,6 +88,18 @@ std::unordered_map<uint64_t, std::vector<DiskRecord>> disk_records;
 // programs the state list's notes name, which its own preparation had just read in: "predicted 0 pipelines" on every new build
 std::unordered_map<uint64_t, std::vector<DiskRecord>> disk_taken;
 FILE* disk_out = nullptr;
+// (PS5_Hookshot) The records of a preparation are held and flushed 8 MB at a time. Each write call into the console's title
+// folder costs ~60 ms whatever its size (24 MB go in 1.4 s), and a record went out with a flush after it and another after
+// its index entry: ~1.5 s a program under the lock, every worker waiting (1.2 programs a second on eight cores at 10% of
+// one). In play each record is still written at once, in one piece. Elsewhere nothing is held. (No setvbuf for it: a 9 MiB
+// stream buffer asked of the console's libc left every guest thread started afterwards without its thread-local data)
+#ifdef __PROSPERO__
+constexpr size_t kDiskHold = 8u << 20;
+#else
+constexpr size_t kDiskHold = 0;
+#endif
+std::atomic<size_t> disk_held{0};   // (bytes written to disk_out and not flushed: written under disk_mu)
+int64_t disk_end = -1;   // (where the next record goes in the file: asked once, counted from then on; disk_mu)
 // (the records' heads, in the file's order, in longshot_programs.idx beside it: see disk_init)
 FILE* disk_idx = nullptr;
 bool disk_listing = false;
@@ -365,6 +377,21 @@ void get_info(Reader& r, Shader::Info& i) {
     if (!descriptor_counts_fit(i)) r.bad = true;   // (left out, and translated again)
 }
 
+namespace {
+void disk_flush_locked() {   // (the records before their index entries: disk_mu held)
+    if (disk_out) fflush(disk_out);
+    if (disk_idx) fflush(disk_idx);
+    disk_held = 0;
+}
+}   // namespace
+/// What a preparation's saves still hold goes to the file (kDiskHold): before any read of a record, which is by another handle.
+/// disk_mu is taken when something is held: not to be called with it held
+void program_cache_flush() {
+    if (!disk_held.load(std::memory_order_acquire)) return;
+    std::lock_guard lk(disk_mu);
+    if (disk_held) disk_flush_locked();
+}
+
 void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t>>& spirv) {
     // (each stage's phis, for fallback_compute_pipelines: the SPIR-V is not kept after this. Before the program is published)
     if (spirv.size() == p.stages.size())
@@ -399,8 +426,15 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
     const size_t head_size = disk_zstd ? kZstdHead : 16;
     const uint64_t head[2] = {p.key, stored};
     std::lock_guard lk(disk_mu);
-    _fseeki64(disk_out, 0, SEEK_END);
-    const int64_t at = _ftelli64(disk_out);
+    // (the record's place counted, not asked for, where records are held: a seek writes what the stream holds, a write call a
+    // record again: kDiskHold)
+    if (!kDiskHold || disk_end < 0) {
+        _fseeki64(disk_out, 0, SEEK_END);
+        disk_end = _ftelli64(disk_out);
+    }
+    const int64_t at = disk_end;
+    disk_end += (int64_t)head_size + (int64_t)stored;
+    const bool hold = kDiskHold && disk_listing;   // (a preparation's: see kDiskHold)
     fwrite(head, 8, 2, disk_out);
     if (disk_zstd) fwrite(&kind, 4, 1, disk_out);
     if (compressed_ok) {
@@ -410,12 +444,17 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
     } else {
         fwrite(o.data(), 1, o.size(), disk_out);
     }
-    fflush(disk_out);
+    if (!hold) fflush(disk_out);
     if (disk_idx) {   // (after the record: an index ahead of the file would name a record it does not have)
         std::vector<uint8_t> e;
         idx_put(e, p.key, stored, kind);
         fwrite(e.data(), 1, e.size(), disk_idx);
-        fflush(disk_idx);
+        if (!hold) fflush(disk_idx);
+    }
+    if (hold) {
+        if (disk_held.fetch_add(head_size + (size_t)stored) + head_size + (size_t)stored >= kDiskHold) disk_flush_locked();
+    } else if (disk_held) {
+        disk_flush_locked();   // (the index's entries held before this one, in their order)
     }
     // (the precompile's: nothing holds them but the file, and the game starts on them at once)
     if (disk_listing) disk_records[p.key].push_back({at + (int64_t)head_size, (size_t)stored, kind});
@@ -441,6 +480,7 @@ bool program_cache_payload(const uint8_t* stored, size_t stored_size, uint32_t k
 /// The kept variants of key read from the file (in: a handle on it, used under mu when given) and made ready, to variants
 void program_cache_read(FILE* in, std::mutex* mu, uint64_t key, const std::vector<DiskRecord>& recs,
                         std::vector<std::unique_ptr<Program>>& variants) {
+    program_cache_flush();   // (a record still held is not in the file to read: kDiskHold)
     for (const DiskRecord& d : recs) {
         // (the census: the records each thread reads, and those read in play, vk_programs.h)
         struct Counted {
@@ -547,6 +587,7 @@ std::mutex light_mu;
 /// A kept record's program without its code. nullptr: not a record to read this way (more than one stage, a head longer than
 /// kFront or a tail longer than kTailMost, one that does not read): it is read whole, as before
 std::unique_ptr<Program> program_cache_read_light(FILE* in, std::mutex* mu, uint64_t key, const DiskRecord& d) {
+    program_cache_flush();
     // (the compressed cache, RX_VK_PROGRAM_CACHE_ZSTD: a record is one zstd frame behind a 20-byte head, and nothing in it has
     // a place of its own in the file. Not a record to read this way: the caller reads it whole, program_cache_read unpacks it)
     if (disk_zstd) return nullptr;
@@ -605,6 +646,7 @@ namespace {
 /// gate only tried (make_module); while another thread holds it, *busy is set, false comes back and the program is as it was
 bool complete_from(Program& p, FILE* in, std::mutex* mu, bool* busy = nullptr) {
     if (!p.code_words) return !p.failed;
+    program_cache_flush();
     const int64_t code_at = p.code_at;
     const uint64_t words = p.code_words;
     std::vector<uint32_t> spirv((size_t)words);
@@ -725,6 +767,7 @@ bool program_cache_variant(FILE* in, uint64_t key, const DiskRecord& d, uint64_t
     // (a record's head: its key and size, the kind word, then the answers, which are what its variant is the hash of)
     constexpr size_t kFront = 1024;
     std::vector<uint8_t> front(16 + std::min(d.size, kFront));
+    program_cache_flush();
     if (!in || _fseeki64(in, d.at - 16, SEEK_SET) || fread(front.data(), 1, front.size(), in) != front.size()) return false;
     uint64_t head[2];
     std::memcpy(head, front.data(), 16);
@@ -908,6 +951,7 @@ bool program_cache_complete_graphics(const Program& prog) {
     const size_t head_size = disk_zstd ? kZstdHead : 16;
     // (read with the worker's own handle on the file, and the modules made before taking light_mu: neither light_mu nor disk_mu is
     // held across the disk reads or vkCreateShaderModule, so a dispatch or pick on the replay thread never waits behind them)
+    program_cache_flush();
     FILE* own_in = !disk_path.empty() ? fopen(disk_path.c_str(), "rb") : nullptr;
     auto read_at = [&](int64_t pos, void* dst, size_t bytes) -> bool {
         if (own_in) return _fseeki64(own_in, pos, SEEK_SET) == 0 && fread(dst, 1, bytes, own_in) == bytes;
@@ -1063,6 +1107,7 @@ void program_cache_each(const std::function<void(const KeptProgram&)>& fn) {
                     if (!(d.kind & 1)) all.push_back({kv.first, d});
     }
     std::sort(all.begin(), all.end(), [](const auto& a, const auto& b) { return a.second.at < b.second.at; });   // (file order)
+    program_cache_flush();
     // (read on several threads, each with a handle of its own and a run of records at a time, as program_cache_load_some: on one,
     // under disk_mu, every record of the game (5.6 GB) was 7-16 s of the prediction's "deciding", the file in memory already)
     constexpr size_t kRun = 64;

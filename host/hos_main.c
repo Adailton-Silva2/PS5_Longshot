@@ -141,6 +141,13 @@ static int reserve_guest(void) {
     void hos_commit_init(void);
     hos_commit_init();
     return VirtualAlloc((void *)A64_HOST_BASE, GUEST_SPACE, MEM_RESERVE, PAGE_NOACCESS) == (void *)A64_HOST_BASE;
+#elif defined(__PROSPERO__)
+    /* (PS5) reserved as on Windows, committed as the runtime hands memory out (hos_commit) or on first touch (mkw_glue.c
+       commit_on_touch): the console backs committed pages with direct memory (host/ps5/win32_ps5.c), and has no
+       overcommit to make a whole readable window of */
+    void hos_commit_init(void);
+    hos_commit_init();
+    return VirtualAlloc((void *)A64_HOST_BASE, GUEST_SPACE, MEM_RESERVE, PAGE_NOACCESS) == (void *)A64_HOST_BASE;
 #else
     /* (linux) the whole window readable and writable at once, its pages made as they are first touched (no commit
        step: MAP_NORESERVE). Decommitting is madvise (host/posix/win32_posix.c VirtualFree): the pages read as zero. */
@@ -225,7 +232,15 @@ static int reserve_guest(void) {
 int hos_guest_memfd = -1;
 int hos_posix_guest_memfd(void) { return hos_guest_memfd; }
 int hos_posix_guest_discard(void *p, size_t n) {
+#ifdef __PROSPERO__
+    /* (PS5) given back: whole units unmapped, their memory kept for the next commits (host/ps5/win32_ps5.c). The callers
+       keep and zero what a GPU import holds (host/hos_mem.c) */
+    int hos_ps5_decommit(void *addr, size_t size);
+    hos_ps5_decommit(p, n);
+    return 0;
+#else
     return madvise(p, n, hos_guest_memfd >= 0 ? MADV_REMOVE : MADV_DONTNEED);
+#endif
 }
 #endif
 
@@ -481,6 +496,15 @@ static int env_line_allowed(const char *name, const char *value) {
 static void load_longshot_env(void) {
     char path[MAX_PATH + 32];
     const char *other = getenv("HOS_ENV_FILE");
+#ifdef __PROSPERO__
+    /* (PS5) a title is started with no environment to put HOS_ENV_FILE in: a test run's switches are in
+       hookshot_test_env.txt in the title folder, which the run tool writes before the start and takes away after the
+       run (ps5/tools/run.py). It sets anything, as HOS_ENV_FILE's file does; a player's hookshot_env.txt does not. */
+    if (!(other && *other)) {
+        FILE *test = fopen("/app0/hookshot_test_env.txt", "r");
+        if (test) fclose(test), other = "/app0/hookshot_test_env.txt";
+    }
+#endif
     if (other && *other) {
         snprintf(path, sizeof path, "%s", other);
     } else {
@@ -1849,7 +1873,14 @@ static int game_main(int argc, char **argv) {
         }
 #endif
         HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
+#ifdef __PROSPERO__
+        /* (PS5) standard error is already the kernel log (host/ps5/platform.c), a pipe and a thread of the platform layer's.
+           A file in the title folder costs ~60 ms a write on the console (200 log lines took 12 s), and the log was
+           unbuffered: every thread that logged stalled there holding its virtual core, and the game sat idle waiting. */
+        if (0) {
+#else
         if (!err || err == INVALID_HANDLE_VALUE || GetFileType(err) == FILE_TYPE_UNKNOWN) {
+#endif
             char path[MAX_PATH + 32];
             DWORD n = hos_game_path_a(path, MAX_PATH);
             while (n && path[n - 1] != 92 && path[n - 1] != 47) n--;
@@ -1948,7 +1979,17 @@ static int game_main(int argc, char **argv) {
             if (GetFileAttributesA(beside_image) != INVALID_FILE_ATTRIBUTES) {
                 image = beside_image;
                 if (!hos_romfs_dir) hos_romfs_dir = beside_romfs;
-#ifndef _WIN32
+#ifdef __PROSPERO__
+                /* (PS5) the title folder (/app0) holds image.bin and the saves; the romfs is read in place from the game's
+                   .nup (hos_ps5_nup: HOS_PS5_NUP, else the package an emulator there reads), and from a romfs/ folder
+                   beside image.bin only when there is no package */
+                if (hos_romfs_dir == beside_romfs) {
+                    int nup_romfs_open(const char *package);
+                    const char *hos_ps5_nup(void);
+                    if (nup_romfs_open(hos_ps5_nup())) hos_romfs_dir = "/nup/romfs";
+                }
+                if (!hos_user_dir) hos_user_dir = beside_user;
+#elif !defined(_WIN32)
                 if (!hos_user_dir) hos_user_dir = saves_dir(beside_user);
 #else
                 if (!hos_user_dir) hos_user_dir = beside_user;
@@ -2168,11 +2209,47 @@ int main(int argc, char **argv) {
     }
     int hos_display_init(void);
     void hos_display_loop(void);
+#ifdef __PROSPERO__   /* (the console: standard error into klog, the shell's splash dismissed: host/ps5/platform.c) */
+    void platform_init(const char *title_name);
+    platform_init(HOS_GAME_TITLE);
+    void hos_ps5_quit_watch(void);
+    hos_ps5_quit_watch();   /* (a test run's clean stop: host/ps5/win32_ps5.c) */
+#endif
     hos_game_layout();   /* (the game folder's cache/ and logs/, before anything writes there, --prepare-shaders too: host/game_layout.c) */
     load_longshot_env();
     hos_options_choose(argc, argv);   /* (before the Discord status reads it, below: host/options_path.c) */
     driver_cache_room();
     driver_cache_folder();
+#ifdef __PROSPERO__
+    {   /* (PS5) What the console plays with, unless the game folder's env file says otherwise. The game's memory, the renderer's and the
+           program share 13.2 GB: the handheld profile, textures of at most 512 texels, the largest left out and every ASTC one
+           kept as BC3. At 1024 texels Kokiri Forest had ~1 GB free but Hyrule Castle Town ran out on arrival (std::bad_alloc
+           with 32 MiB left, two runs of three ending there); at 512 the town has 180-500 MiB free and plays. The game runs
+           at 26-40 fps in the forest on these cores with the GPU half idle:
+           PS5_MihawkGen's network makes every other frame, shown on an even line (65 fps out of 33); FSR 3.1's frame
+           interpolation is off (RX_VK_FSR_FG=1 puts it back where RX_VK_MIHAWKGEN=0 leaves the frame to it). */
+        static const char *const defaults[][2] = {
+            {"HOS_HANDHELD", "1"}, {"RX_VK_TEX_MAX_DIM", "512"}, {"RX_VK_TEX_SKIP_MB", "16"}, {"RX_VK_ASTC_BC_ALL", "1"},
+            {"RX_VK_ASTC_BC_MB", "0"}, {"RX_VK_FRAMEGEN_MULT", "2"}, {"RX_VK_PACE", "1"},
+            {"RX_VK_FSR_FG", "0"},
+            /* (every shader translated before the first play, where hookshot_shaders.bin is beside the game, without the
+               driver's part: with it the 4,128 compute programs alone went at ~1.3 a second, hours in all; without, ~26) */
+            {"RX_VK_NO_WARM", "1"},
+            /* (the recordings' 48 descriptor pools at an eighth: 4 MiB of the driver's memory each as they come, 195 MiB in
+               all, for the few programs past the push limit; one that runs out is followed by another) */
+            {"RX_VK_DESC_POOL_DIV", "8"},
+        };
+        for (size_t i = 0; i < sizeof defaults / sizeof *defaults; i++) setenv(defaults[i][0], defaults[i][1], 0);
+    }
+    void hos_ps5_timing_probe(void);
+    void hos_ps5_cpu_topology(void);
+    hos_ps5_cpu_topology();
+    hos_ps5_timing_probe();   /* (HOS_PS5_TIMING=1) */
+    void hos_ps5_sample_start(void);
+    hos_ps5_sample_start();   /* (HOS_PS5_SAMPLE=<start>,<seconds>) */
+    void hos_ps5_cpu_meter(void);
+    hos_ps5_cpu_meter();   /* (HOS_PS5_CPU=1) */
+#endif
     game_argc = argc, game_argv = argv;
     int prepare_shaders = 0;
     for (int i = 1; i < argc; i++) {

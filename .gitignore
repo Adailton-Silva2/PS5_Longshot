@@ -43,3 +43,7 @@ build-linux/
 ngx-sdk/
 test-results/
 _deps/
+
+# ---- the PS5 title folder: image.bin is made from the game ----
+dist/
+.local/

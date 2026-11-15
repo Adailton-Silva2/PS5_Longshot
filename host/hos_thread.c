@@ -994,6 +994,10 @@ uint64_t hos_reserved_cpus(void) {
         hos_log("vk: HOS_RESERVE_CORE=0, no core reserved");
         return mask;
     }
+#ifdef __PROSPERO__   /* (PS5: none unless asked for. The replay runs on the threads that submit, which no pin moves to a kept
+                         core here (vk_replay.cpp: Windows only), so a core kept would be a core idle) */
+    if (!getenv("HOS_RESERVE_CORE")) return mask;
+#endif
 #if defined(_WIN32)
     /* (longshot) none where the game is kept to the cores of the largest L3 (hos_cache_cpus): they are 8 cores on the CPUs
        measured (a 9950X3D, SMT off), and with one of them kept for the replay the game's threads had 7. In the market the replay

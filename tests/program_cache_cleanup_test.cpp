@@ -119,6 +119,9 @@ unsigned ZSTD_isError(size_t n) { return n == (size_t)-1; }
 FILE* disk_in = nullptr;
 FILE* disk_out = nullptr;
 FILE* disk_idx = nullptr;
+constexpr size_t kDiskHold = 0;   // (as off the console: nothing held)
+size_t disk_held = 0;
+int64_t disk_end = -1;
 std::mutex disk_mu;
 std::unordered_map<uint64_t, std::vector<DiskRecord>> disk_records;
 std::unordered_map<uint64_t, std::vector<DiskRecord>> disk_taken;   // (vk_shader.cpp: the records read in, for the prediction)

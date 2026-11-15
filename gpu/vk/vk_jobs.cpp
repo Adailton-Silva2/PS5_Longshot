@@ -74,10 +74,16 @@ void worker() {
 }
 
 void start() {
+#ifdef __PROSPERO__
+    // (PS5: two. Each translation in flight holds its own working memory, and four at once took the heap from 1.1 to 1.7 GB as
+    // an area's shaders came in, when the game's own memory peaks too: the title's 13.2 GB ran out. RX_VK_JOB_WORKERS=<n>: other)
+    const unsigned n = getenv("RX_VK_JOB_WORKERS") ? (unsigned)std::clamp(atoi(getenv("RX_VK_JOB_WORKERS")), 1, 8) : 2u;
+#else
     // (longshot: with 16 hardware threads or more, 6 workers; RX_VK_WORKERS=<n>: n, 1 to 16)
     const unsigned hw = std::thread::hardware_concurrency();
     unsigned n = hw >= 16 ? 6u : std::clamp(hw / 3, 2u, 4u);
     if (const char* e = getenv("RX_VK_WORKERS")) n = (unsigned)std::clamp(atoi(e), 1, 16);
+#endif
     for (unsigned i = 0; i < n; i++) std::thread(worker).detach();
     started = true;
     logf("vk: %u background workers (shader translation, pipelines)", n);

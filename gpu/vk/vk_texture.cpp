@@ -66,7 +66,23 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
+#ifdef __PROSPERO__
+extern "C" uint64_t hos_ps5_direct_room(void);   // (host/ps5/win32_ps5.c: the title's free direct memory in all)
+#endif
+
 namespace mkwvk {
+#ifdef __PROSPERO__
+// (PS5) The game's memory, the renderer's and the textures share the title's 13.2 GB, and a request of the game's that fails
+// ends the title: it writes to the page it did not get (Hyrule Castle Town on arrival, twice in three runs, and after a while
+// of play). So the last HOS_PS5_TEX_RESERVE_MB of free memory (1024) are the game's: below that a decoded ASTC texture, the
+// renderer's largest kind and the only one a level may be left out of, is made at 128 texels at most (32 below half of it),
+// and evict_textures makes it again at its own size once more than the reserve and a quarter is free.
+uint64_t ps5_tex_reserve() {   // (vk_vma.cpp asks too)
+    static const uint64_t v = (uint64_t)(getenv("HOS_PS5_TEX_RESERVE_MB") ? atoi(getenv("HOS_PS5_TEX_RESERVE_MB")) : 1024) << 20;
+    return v;
+}
+static std::atomic<uint64_t> ps5_pressed_n{0}, ps5_restored_n{0};
+#endif
 namespace {
 
 uint64_t mix(uint64_t h, uint64_t v) {
@@ -2106,6 +2122,20 @@ Texture* create(const Key& key, const nvn_tex* t, VkFormat vf, bool astc, int bw
         while (!x.sparse && astc && x.skip + 1 < x.levels && bytes_at(x.skip) > skip_from &&
                (std::max(x.width, x.height) >> x.skip) > max_dim)
             x.skip++;
+#ifdef __PROSPERO__
+        if (astc && !x.sparse) {   // (memory short: small for now, ps5_tex_reserve)
+            const uint64_t room = hos_ps5_direct_room(), reserve = ps5_tex_reserve();
+            const uint32_t cap = room < reserve / 2 ? 32 : 128;
+            while (room < reserve && x.skip + 1 < x.levels && (std::max(x.width, x.height) >> x.skip) > cap) x.skip++, x.pressed = true;
+            if (x.pressed) {
+                const uint64_t n = ++ps5_pressed_n;
+                if (n <= 5 || n % 200 == 0)
+                    logf("vk: memory short (%llu MB free, %llu kept for the game): ASTC textures made at %u texels at most for now "
+                         "(%llu so far, %llu made again at their own size)", (unsigned long long)(room >> 20),
+                         (unsigned long long)(reserve >> 20), cap, (unsigned long long)n, (unsigned long long)ps5_restored_n.load());
+            }
+        }
+#endif
         while (!x.sparse && x.skip + 1 < x.levels && bytes_at(x.skip) > max_bytes) x.skip++;
         if (x.skip) {
             static int logged;
@@ -4635,6 +4665,19 @@ void texture_frame(uint64_t completed) {
             }
         }
     }
+#ifdef __PROSPERO__
+    // (PS5) the game's pages come from the same pool as the textures: with less than the reserve free, every texture unused
+    // for a second goes, not only what is over the renderer's own share. Leaving Hyrule Castle Town the town's 1.25 GB of
+    // textures waited their turn under a loading screen while the game's next page found no memory
+    static std::atomic<uint64_t> ps5_shed_frames{0};
+    if (hos_ps5_direct_room() < ps5_tex_reserve()) {
+        budget = 0;
+        const uint64_t n = ++ps5_shed_frames;
+        if (n == 1 || n % 600 == 0)
+            logf("vk: memory short (%llu MB free): textures unused for a second go (%llu frames of it so far)",
+                 (unsigned long long)(hos_ps5_direct_room() >> 20), (unsigned long long)n);
+    }
+#endif
     // (longshot) the 90% rule and the driver's limit let go of their excess, not of an eighth of the cache: vram_compact.h.
     // RX_VK_EVICT_EXCESS=0: to 7/8 of their budget, as before
     static const bool excess_only = !getenv("RX_VK_EVICT_EXCESS") || atoi(getenv("RX_VK_EVICT_EXCESS")) != 0;
@@ -4763,8 +4806,15 @@ void texture_frame(uint64_t completed) {
     // within 10), uploaded and decoded again each time; and a 260 x 260 one the GPU renders and the game samples every
     // 40 frames came back empty each time (22 times; the lit ground black for a frame, a tiled pattern over the ground).
     // With 60: 2. The textures that are really done with still go, 52 frames later)
+    // (PS5: 30. PS5_Hookshot counted the age in time, a second, since the console's presents are long; here the count stays in
+    // presents, which the compaction's hold reads too, and a second of them at the console's 30 to 40 a second is about 30)
+#ifdef __PROSPERO__
+    constexpr int kMinUnused = 30;
+#else
+    constexpr int kMinUnused = 60;
+#endif
     static const uint64_t min_unused =
-        getenv("RX_VK_EVICT_MIN_UNUSED") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_EVICT_MIN_UNUSED"))) : 60;
+        getenv("RX_VK_EVICT_MIN_UNUSED") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_EVICT_MIN_UNUSED"))) : kMinUnused;
     // (longshot) a render target another image has since been drawn over (same storage, another size or format:
     // OoT's dynamic resolution makes a new set at each size in the same pool memory) holds nothing any more: it
     // goes like any other. Kept, they were 3.6 GB of 4.5 GB rendered, VRAM near the driver's limit, and the
@@ -4947,6 +4997,21 @@ void texture_frame(uint64_t completed) {
                 if (e.flush) e.flush = !evict_reason::write_back_stale(e.tex->last_written, other[i++]);
         }
     }
+#ifdef __PROSPERO__
+    // (PS5) the textures made small while memory was short, made again at their own size while more than the reserve and a
+    // quarter is free (ps5_tex_reserve): the most recently used first, two every ten presents. Not one the game has finalized
+    // (its memory may hold something else by now), one the GPU wrote, or one recorded work may still read
+    if (hos_ps5_direct_room() > ps5_tex_reserve() / 4 * 5) {
+        int n = 0;
+        for (auto it = order.rbegin(); it != order.rend() && n < 2; ++it) {
+            Texture* tex = it->second;
+            if (!tex->pressed || tex->gpu_written || tex->released || tex->last_value > completed) continue;
+            if (std::any_of(evict.begin(), evict.end(), [&](const Evict& e) { return e.tex == tex; })) continue;
+            evict.push_back({tex, false, false, false});
+            n++, ps5_restored_n++;
+        }
+    }
+#endif
     evict_reason::Tally tally;                     // (why each one goes: the retired line below)
     std::unordered_set<const Texture*> flushed_ok;   // (the write-backs that worked)
     // (and those that wait: a read-back still on the GPU, its wait timed out. They stay, their texels in their images, for a
