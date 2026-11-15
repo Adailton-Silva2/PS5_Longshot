@@ -47,6 +47,7 @@ export default defineConfig({
       { label: 'Development', items: [
         { label: 'Progress', slug: 'progress' },
         { label: 'Contributing', slug: 'contributing' },
+        { label: 'Help test (Test Farm) ↗', link: 'https://beanstalk.magicbean.dev/how' },
         { label: 'Scrub a save', slug: 'saves/scrub' },
         { label: 'Source code ↗', link: repository },
       ] },
