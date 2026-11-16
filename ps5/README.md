@@ -26,7 +26,8 @@ when it is 1920x1080, 2560x1440 or 3840x2160; `HOS_PS5_DISPLAY` overrides it. In
 the limit: 35 fps at PS5_Hookshot's handheld profile at half the picture, 31 to 32 at 1920x1080, 29 at 2560x1440, about
 3 GB of memory free in each. Textures are at most 1024 texels (135 MB more than at PS5_Hookshot's 512 in the forest; 2048
 takes 540 MB more and the renderer past its own 2560 MB). Hyrule Castle Town, which ran out of memory at 1024 before the
-port kept a reserve for the game, has not been played at it: `RX_VK_TEX_MAX_DIM=512` is the old limit.
+port kept a reserve for the game, has not been played at it: `RX_VK_TEX_MAX_DIM=512` is the old limit. At 3840x2160 a Pro plays the forest at about 40 frames a second shown with
+frame generation on (the owner's play, 2026-11-16; not measured from the log).
 
 The title is **PPSA99025, Longshot**, so PS5_Hookshot's PPSA99024 on a console is left alone.
 

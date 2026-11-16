@@ -217,7 +217,7 @@ or opens a page, Cross (the Switch's B) goes back or closes the menu.
 
 | Row | On the console |
 |---|---|
-| **Output resolution** (Graphics) | 1920x1080 by default. Choosing 2560x1440 switches the console to that display mode **at the next start**. Measured in Kokiri Forest on a Pro: 31 to 32 game frames a second at 1920x1080, 29 at 2560x1440. 3840x2160 was not tried. |
+| **Output resolution** (Graphics) | 1920x1080 by default. Choosing 2560x1440 switches the console to that display mode **at the next start**. Measured in Kokiri Forest on a Pro: 31 to 32 game frames a second at 1920x1080, 29 at 2560x1440. 3840x2160 works on a Pro too: played there, about 40 frames a second shown with frame generation on (seen in play, not from the log). |
 | **Quality preset** (Graphics) | "Auto" picks Balanced on the console: the full picture, not a reduced one. |
 | **Frame generation** (Graphics) | On, 2x, from the start: PS5_MihawkGen's network makes one frame between each two of the game's. |
 | **Volume**, **Text speed**, **Field of view**, **Camera** rows | The game's own; nothing console-specific. |
