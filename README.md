@@ -9,7 +9,7 @@
   <br>
 </h1>
 
-<h4 align="center">A supported console game running natively on Windows & Linux, without emulation.
+<h4 align="center">Longshot for the PlayStation 5: a supported console game running natively on the PS5, without emulation.
 </h4>
 
 <p align="center">
@@ -24,7 +24,28 @@
   <a href="#license">License + Credits</a>
 </p>
 
-<p align="center">This website is our Git hosting, similar to GitHub.</p>
+> [!IMPORTANT]
+> **This repository is the PlayStation 5 version of Longshot.** It is a port of
+> [Longshot](https://git.magicbean.dev/MagicBeanDev/Longshot) to the PS5, with
+> [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan) as its Vulkan driver, and it builds one thing: the PS5 title.
+>
+> **No PC builds of Longshot are included or released here.** There is no Windows or Linux game, launcher or builder
+> in this repository's releases. For Longshot on a PC, go to [Longshot itself](https://longshot.magicbean.dev/).
+>
+> What the releases here hold is the **Longshot PS5 Builder**: a desktop program for Linux (an AppImage) and Windows
+> (a portable folder) that makes the PS5 title folder from your own copy of the game, on your own computer. It holds
+> no game files.
+>
+> - Using it, and what it does: [ps5/builder/README.md](ps5/builder/README.md)
+> - The port: what runs, how it was measured, the console's profiles: [ps5/README.md](ps5/README.md)
+>
+> A jailbroken PS5 with a homebrew environment is needed to run the title. The game is not included, and nothing here
+> explains how to get it.
+
+Everything below this line is **Longshot's own README, for its PC versions**, kept as it is for reference: its
+download links, requirements, in-game menu and troubleshooting are the PC game's, not this port's.
+
+---
 
 Longshot is a static recompilation of a supported console game. The game's code is translated to C and compiled into a Windows or Linux program, rebuilding the graphics on Vulkan, with the console's system software reimplemented. All of this happens **on your PC, from your own copy of the game**.
 
