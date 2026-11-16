@@ -20,7 +20,7 @@ measured is its memory: on the Pro in the base console's mode (`attribute3` 0x14
 "proc gen:2", 12,016 MiB of direct memory against the Pro mode's 13,232) the title loads the autosave and plays Kokiri
 Forest for the test's 230 s with no fault and no "memory short" line: 9.7 GB taken, 1.9 GB free at the least against
 3.2 GB. The processor and GPU are still the Pro's there, so the base console's frame rate was not measured here: in play
-on a base console it is about 20 frames a second lower than a Pro's.
+on a base console, with frame generation on, about 20 frames a second fewer are shown than on a Pro.
 
 Resolution: the console starts at the docked profile with the full picture (the Balanced preset), 1920x1080. The
 Output resolution chosen in the menu (`output_res=` in `longshot_options.ini`) picks the display mode at the next start

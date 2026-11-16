@@ -157,8 +157,8 @@ Measured on a PS5 Pro, in Kokiri Forest, at 1920x1080:
   autosave, and Kokiri Forest. **Nothing beyond the forest has been played**, and sound and a real controller were
   not checked by a person: the test runs used scripted input.
 - **It also runs on a base PS5** (PS5 and PS5 Slim), built with the builder's PS5 / PS5 Slim profile, at **about 20
-  frames a second less than a Pro**. That figure is from play on a base console, not from a logged run; the other
-  numbers here are a Pro's. The base console's memory was measured, on a Pro started in the base console's mode
+  frames a second less than a Pro, with frame generation on**: about 45 shown in Kokiri Forest where a Pro shows 63 to
+  68. That figure is from play on a base console, not from a logged run; the other numbers here are a Pro's. The base console's memory was measured, on a Pro started in the base console's mode
   (12 GB): the forest plays with about 2 GB free.
 
 [ps5/README.md](ps5/README.md) has the measurements.
