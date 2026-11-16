@@ -11,7 +11,7 @@ import sys
 
 from PyQt6.QtCore import QProcess, QSettings, Qt, QThread, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFont, QTextCursor
-from PyQt6.QtWidgets import (QApplication, QCheckBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
                              QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -112,6 +112,16 @@ class Window(QWidget):
         form = QFormLayout()
         form.addRow("Game file", self.row(self.game, game_pick))
         form.addRow("Build into", self.row(self.out, out_pick))
+        # (the console's profile: pipeline.py MODELS. No model chosen until the player chooses one)
+        self.model = QComboBox()
+        self.model.addItem("Choose your console…", "")
+        self.model.addItem("PS5 / PS5 Slim", "base")
+        self.model.addItem("PS5 Pro", "pro")
+        self.model.setCurrentIndex(max(0, self.model.findData(self.settings.value("model", ""))))
+        self.model.setToolTip("The folder is built for one model. PS5 Pro: its faster processor mode and larger memory, "
+                              "larger textures. PS5 / PS5 Slim: the base console's memory, smaller textures. A folder "
+                              "built for the base console also runs on a Pro, in the base console's mode.")
+        form.addRow("Console", self.model)
         self.jobs = QSpinBox()
         self.jobs.setRange(0, 64)
         self.jobs.setSpecialValueText("Automatic")
@@ -227,7 +237,7 @@ class Window(QWidget):
             self.out.setText(path)
 
     def busy(self, on):
-        for w in (self.game, self.out, self.jobs):
+        for w in (self.game, self.out, self.jobs, self.model):
             w.setEnabled(not on)
         self.go.setText("Stop" if on else "Build")
 
@@ -245,7 +255,11 @@ class Window(QWidget):
         if not out:
             QMessageBox.warning(self, "No folder", "Choose the folder to build into.")
             return
-        for k, v in (("game", game), ("out", out), ("jobs", self.jobs.value())):
+        model = self.model.currentData()
+        if not model:
+            QMessageBox.warning(self, "No console", "Choose your console: PS5 / PS5 Slim, or PS5 Pro.")
+            return
+        for k, v in (("game", game), ("out", out), ("jobs", self.jobs.value()), ("model", model)):
             self.settings.setValue(k, v)
         os.makedirs(out, exist_ok=True)
         self.log.clear()
@@ -258,7 +272,7 @@ class Window(QWidget):
         self.status.setText("Building…")
         self.show_steps(1)
         self.busy(True)
-        args = ["-I", "-u", PIPELINE, "--game", game, "--out", out]
+        args = ["-I", "-u", PIPELINE, "--game", game, "--out", out, "--model", model]
         if self.jobs.value():
             args += ["--jobs", str(self.jobs.value())]
         self.proc = QProcess(self)

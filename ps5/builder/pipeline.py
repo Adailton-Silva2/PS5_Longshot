@@ -29,6 +29,16 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXE = ".exe" if os.name == "nt" else ""
+# The console the title is made for. attribute3 (sce_sys/param.json) is read by the console's kernel at each start: the Pro's
+# value asks for its High CPU Frequency mode and its larger memory (13,232 MiB of direct memory); the base value starts the
+# title as a base-generation process (12,016 MiB), on a Pro too, where it was measured: Kokiri Forest plays with 1.9 GB free
+# at the least, against the Pro mode's 3.2 GB. With that much less room the base profile keeps PS5_Hookshot's 512-texel
+# textures (the Pro's 1024 take 135 MB more in the forest). The switches go in longshot_env.txt in the title folder, which
+# the title reads at its start (host/hos_main.c); a line the player adds there afterwards is theirs.
+MODELS = {
+    "base": {"name": "PS5 / PS5 Slim", "attribute3": 0x140040, "env": {"RX_VK_TEX_MAX_DIM": "512"}},
+    "pro": {"name": "PS5 Pro", "attribute3": 0x8540040, "env": {}},
+}
 STEPS = ["Reading the game's program", "Translating it to C", "Compiling for the console", "Linking", "Making the title folder"]
 
 
@@ -280,7 +290,7 @@ def link(kit, info, work, objects, lld, nm):
     return elf
 
 
-def title(kit, info, work, elf, native, out):
+def title(kit, info, work, elf, native, out, model):
     step(5)
     app = os.path.join(out, info["title_id"])
     if os.path.exists(app):
@@ -297,6 +307,19 @@ def title(kit, info, work, elf, native, out):
     run([native, "self", "--inspect", "--file", os.path.join(app, "eboot.bin")], what="the check of eboot.bin")
     shutil.copytree(os.path.join(kit, "title"), app, dirs_exist_ok=True)
     shutil.copy2(os.path.join(work, "lift", "sa", "image", "image.bin"), os.path.join(app, "image.bin"))
+    # ---- the console's profile ----
+    profile = MODELS[model]
+    param = os.path.join(app, "sce_sys", "param.json")
+    j = json.load(open(param, encoding="utf-8"))
+    j["attribute3"] = profile["attribute3"]
+    with open(param, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(j, indent=2) + "\n")
+    with open(os.path.join(app, "longshot_env.txt"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("# Longshot on the PS5: the switches of the profile this folder was built for (%s).\n"
+                "# NAME=VALUE lines; a line starting with # is a note.\n" % profile["name"])
+        f.write("".join("%s=%s\n" % kv for kv in sorted(profile["env"].items())))
+    say("profile: %s (attribute3 %#x%s)" % (profile["name"], profile["attribute3"],
+                                           "".join("; %s=%s" % kv for kv in sorted(profile["env"].items()))))
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(app) for f in fs)
     say("title: %s (%d MB)" % (app, size >> 20))
     return app
@@ -320,7 +343,7 @@ def build(a):
     gen = lift(kit, work, exefs, a.lift_jobs)
     objects = compile_game(kit, info, work, gen, clang, a.jobs or default_jobs())
     elf = link(kit, info, work, objects, lld, nm)
-    app = title(kit, info, work, elf, native, out)
+    app = title(kit, info, work, elf, native, out, a.model)
     say("@@done " + app)
     return app
 
@@ -329,6 +352,8 @@ def main():
     ap = argparse.ArgumentParser(description="Longshot PS5 Builder: the PS5 title folder from your own game file")
     ap.add_argument("--game", required=True, help="the game: a .nup file, or a folder with its exefs")
     ap.add_argument("--out", required=True, help="where the title folder goes")
+    ap.add_argument("--model", required=True, choices=sorted(MODELS),
+                    help="the console the folder is for: base (PS5 and PS5 Slim) or pro (PS5 Pro)")
     ap.add_argument("--kit")
     ap.add_argument("--tools")
     ap.add_argument("--work", help="the build's own files (default: <out>/longshot-ps5-work); kept, so a second build is short")
