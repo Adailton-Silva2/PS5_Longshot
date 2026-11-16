@@ -60,9 +60,10 @@ start (a test run's own switches file takes the place of `longshot_env.txt`, and
   library run, one game file compiles to the same object as on Linux, and a link and signing from the same objects gives
   the same `eboot.bin` byte for byte. Wine cannot load numpy or Qt (its own gaps), so the lifter and the window have
   **not** run on Windows: the workflow's `check-windows` job is their first real run.
-- **The workflow has not run on GitHub**: the repository is private and its Actions minutes are used up. Each job's
-  commands were run here by hand, on Debian, not on the runners' Ubuntu images. Rehearse it with "Run workflow" once
-  the repository is public, before the first release.
+- **The workflow ran on GitHub** on 2026-11-16: a rehearsal, then the release **v0.1.0**, every job passing, the Windows
+  check on windows-latest among them (the lifter's parts and the window started there for the first time). The
+  published AppImage, downloaded again, matches its checksum and passes `--check`. The released kit was compiled on the
+  runner (clang 18): a title built with it has not run on a console, and a whole build has not run on a Windows PC.
 - **Reading a `.nup`** was not exercised: the tests gave the folder with the game's `exefs`, which the game field
   takes as well.
 - **macOS**: not packaged.
