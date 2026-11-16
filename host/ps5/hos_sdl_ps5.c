@@ -108,7 +108,10 @@ int hos_sdl_vulkan_surface(void *window, void *instance_p, void *surface_out) {
         const VkDisplayModeParametersKHR *p = &modes[i].parameters;
         hos_log("ps5: display mode %ux%u at %u mHz", p->visibleRegion.width, p->visibleRegion.height, p->refreshRate);
         if ((int)p->visibleRegion.width != mode_w || (int)p->visibleRegion.height != mode_h) continue;
-        if (pick < 0 || (p->refreshRate < 61000 && modes[pick].parameters.refreshRate >= 61000)) pick = (int)i;
+        /* (HOS_PS5_HZ=120: that size's 119.88 Hz mode where the screen has one, for made frames past 60 a second) */
+        const int fast = getenv("HOS_PS5_HZ") && atoi(getenv("HOS_PS5_HZ")) > 61;
+        const int is_fast = p->refreshRate >= 61000, has_fast = pick >= 0 && modes[pick].parameters.refreshRate >= 61000;
+        if (pick < 0 || (fast ? is_fast && !has_fast : !is_fast && has_fast)) pick = (int)i;
     }
     if (pick < 0) {
         hos_log("ps5: no %dx%d mode: the largest instead", mode_w, mode_h);
