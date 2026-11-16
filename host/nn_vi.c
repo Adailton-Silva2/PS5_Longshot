@@ -68,6 +68,7 @@ HLE(_ZN2nn2vi20GetDisplayVsyncEventEPNS_2os15SystemEventTypeEPNS0_7DisplayE) {
     RET(0);
 }
 
+int rx_option(int id, int otherwise);   /* (host/rx_backend.c: declared, for the PS5 build's -Werror=implicit-function-declaration) */
 /* nn::vi::QueryDisplayHdrStatus(bool* on, HdrOutputFormat*, unsigned short* max nits, Display const*) -> Result */
 /* (longshot) the Insert menu's HDR set to Native on an HDR10 swapchain: an HDR10 display (format 1, which makes the game present PQ
    codes in 10 bits) of the menu's peak; otherwise SDR, as a desktop window is */

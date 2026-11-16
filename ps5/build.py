@@ -100,7 +100,8 @@ def jobs_for(rt64, gen_dir):
     host_fl = COMMON + ["-I" + POSIX, "-D_GNU_SOURCE", "-I" + HOST, "-I" + rt64, "-I" + GEN, "-O2", "-mcx16", "-DA64_POLLING",
                         "-DA64_WRITE_TRACK", "-I" + os.path.join(OPUS, "include"), "-I" + os.path.join(FFMPEG, "include"),
                         "-I" + os.path.join(DEPS, "zstd", "include"),
-                        "-I" + os.path.join(pkg("vulkanheaders", "v1.4.345"), "include")]
+                        "-I" + os.path.join(pkg("vulkanheaders", "v1.4.345"), "include"),
+                        "-Werror=implicit-function-declaration"]
     skip = {"display.c", "mf_av1.c", "rx_nowgpu.c", "pgo_rt.c", "hos_sdl.c", "mingw_msvc_shims.c", "msvc_oldnames.c", "dav1d_av1.c"}
     host = [os.path.join(HOST, f) for f in sorted(os.listdir(HOST)) if f.endswith(".c") and f not in skip] + \
         [os.path.join(POSIX, f) for f in ("win32_posix.c", "display_sdl.c", "linux_stubs.c")] + \
@@ -218,15 +219,18 @@ def main():
     ui_fonts.write(os.path.join(gen_dir, "ui_fonts.cpp"))
     if a.kit and not os.path.exists(os.path.join(GEN, "a64_suyu.h")):
         # (no lift here: rt64/a64.h, which the runtime includes, includes the lift's two headers. a64_suyu.h is a64-kit's own,
-        # made from suyu's translator and not from a game (a64_rtgen.py); a64_fpx.h is the game's fast-path helpers, static
-        # inline functions only lifted code calls, so an empty one compiles the runtime to the same objects)
+        # made from suyu's translator and not from a game (a64_rtgen.py); a64_fpx.h is the lift's fast-path helpers, static
+        # inline: one for each pair of operations the game uses, which only lifted code calls, after the ones every lift
+        # has. With those alone the runtime compiles to the same objects; a call of one that is not there stops the compile
+        # (host_fl's -Werror=implicit-function-declaration) instead of failing the player's link)
         GEN = os.path.join(OUT, "kit-gen")
         sys.path.insert(0, os.path.join(kit.KIT, "lift"))
         import a64_rtgen
         os.makedirs(GEN, exist_ok=True)
         a64_rtgen.write(GEN)
-        with open(os.path.join(GEN, "a64_fpx.h"), "w") as f:
-            f.write("/* (ps5/build.py --kit: no game, no fast-path helpers) */\n")
+        import a64_lift
+        with open(os.path.join(GEN, "a64_fpx.h"), "w", newline="\n") as f:
+            f.write(a64_lift.fpx_header(set()))   # (the helpers every lift has, a64_vset64 among them: host/oot_fov.c)
     jobs = jobs_for(rt64, gen_dir)
     if a.kit:
         jobs = [j for j in jobs if not os.path.basename(j[1]).startswith("game_")]

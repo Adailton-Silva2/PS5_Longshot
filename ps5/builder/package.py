@@ -113,6 +113,9 @@ def run(cmd, **kw):
 
 
 def version():
+    """BUILDER_VERSION (the release's tag, from the workflow), else git's description of this checkout"""
+    if os.environ.get("BUILDER_VERSION"):
+        return os.environ["BUILDER_VERSION"]
     return subprocess.run(["git", "-C", ROOT, "describe", "--tags", "--always"], capture_output=True, text=True).stdout.strip() or "dev"
 
 
