@@ -112,6 +112,8 @@ project() {   # name revision [clone options]
 project PS5_Mesa "$MESA_REV" --no-checkout   # (its revision is exported by PS5_Vulkan's build: no files of its own)
 project PS5_PayloadSDK "$SDK_REV" --no-checkout
 project PS5_MihawkGen "$MIHAWKGEN_REV"
+# (PS5_Vulkan looks for its forks beside itself: these name where they are here)
+export PS5_PAYLOAD_SDK_FORK="$projects/PS5_PayloadSDK" PS5_MESA_FORK="$projects/PS5_Mesa"
 
 step "PS5_Vulkan: its payload SDK"
 sdk_pin=$(sed -n 's/^sdk_revision=//p' "$vulkan/tools/setup-native-dependencies.sh")
@@ -134,7 +136,7 @@ fi
 
 step "RADV, the Vulkan driver, at PS5 Mesa ${MESA_REV:0:11} (the long step: 10 to 30 minutes the first time)"
 archive="$vulkan/.deps/native/radv-release/lib/libvulkan_radeon.ps5.a"
-(cd "$vulkan" && PS5_MESA_FORK="$projects/PS5_Mesa" PS5_MESA_REVISION=$MESA_REV run radv bash tools/build-radv.sh release)
+(cd "$vulkan" && PS5_MESA_REVISION=$MESA_REV run radv bash tools/build-radv.sh release)
 [[ -f $archive ]] || die "no RADV archive at $archive"
 
 step "the payload SDK the title is compiled with, at ${SDK_REV:0:11}"

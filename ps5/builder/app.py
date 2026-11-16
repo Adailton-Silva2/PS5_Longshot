@@ -7,10 +7,12 @@ steps and its log, and can send the finished folder to a console over FTP. Nothi
 """
 import ftplib
 import os
+import signal
+import subprocess
 import sys
 
-from PyQt6.QtCore import QProcess, QSettings, Qt, QThread, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices, QFont, QTextCursor
+from PyQt6.QtCore import QSettings, Qt, QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QFont, QIcon, QTextCursor
 from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
                              QMessageBox, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
@@ -24,6 +26,63 @@ ABOUT = {
     4: "Under a minute.",
     5: "A few seconds.",
 }
+
+
+def python_exe():
+    """the Python the build runs with: this one; on Windows python.exe beside pythonw.exe, which the window runs with"""
+    exe = sys.executable
+    if os.name == "nt" and os.path.basename(exe).lower() == "pythonw.exe":
+        console = os.path.join(os.path.dirname(exe), "python.exe")
+        if os.path.exists(console):
+            return console
+    return exe
+
+
+class Build(QThread):
+    """pipeline.py as a process of its own, its lines as they come. On Windows it gets a console of its own, hidden, which
+    the compilers it starts share: none of them opens a window. Stopping it stops what it started too."""
+    line = pyqtSignal(str)
+    ended = pyqtSignal(int)
+
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.proc = None
+        self.failed_to_start = ""
+
+    def run(self):
+        kw = {}
+        if os.name == "nt":
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 0   # (SW_HIDE)
+            kw = {"startupinfo": si, "creationflags": subprocess.CREATE_NEW_CONSOLE}
+        else:
+            kw = {"start_new_session": True}
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1")
+        try:
+            self.proc = subprocess.Popen([python_exe()] + self.args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                         stdin=subprocess.DEVNULL, env=env, **kw)
+        except OSError as e:
+            self.failed_to_start = str(e)
+            self.ended.emit(-1)
+            return
+        for raw in self.proc.stdout:
+            self.line.emit(raw.decode("utf-8", "replace").rstrip("\r\n"))
+        self.ended.emit(self.proc.wait())
+
+    def stop(self):
+        p = self.proc
+        if not p or p.poll() is not None:
+            return
+        try:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                os.killpg(p.pid, signal.SIGKILL)
+        except OSError:
+            p.kill()
 
 
 class Sender(QThread):
@@ -86,12 +145,15 @@ class Window(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Longshot PS5 Builder")
+        icon = os.path.join(HERE, "longshot.png")
+        if os.path.exists(icon):
+            self.setWindowIcon(QIcon(icon))
         self.settings = QSettings("PS5_Longshot", "Builder")
         self.proc = None
         self.sender = None
         self.built = ""
         self.stopping = False
-        self.pending = ""
+        self.error = ""
 
         head = QLabel("Longshot PS5 Builder")
         f = QFont(self.font())
@@ -246,7 +308,7 @@ class Window(QWidget):
             if QMessageBox.question(self, "Stop the build?", "Stop the build? What it has done so far is kept: the next "
                                     "build goes on from there.") == QMessageBox.StandardButton.Yes and self.proc:
                 self.stopping = True
-                self.proc.kill()
+                self.proc.stop()
             return
         game, out = self.game.text().strip(), self.out.text().strip()
         if not game or not os.path.exists(game):
@@ -265,7 +327,6 @@ class Window(QWidget):
         self.log.clear()
         self.built = ""
         self.stopping = False
-        self.pending = ""
         self.open.setEnabled(False)
         self.send.setEnabled(False)
         self.bar.setRange(0, 0)
@@ -275,25 +336,11 @@ class Window(QWidget):
         args = ["-I", "-u", PIPELINE, "--game", game, "--out", out, "--model", model]
         if self.jobs.value():
             args += ["--jobs", str(self.jobs.value())]
-        self.proc = QProcess(self)
-        self.proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
-        self.proc.readyReadStandardOutput.connect(self.read)
-        self.proc.finished.connect(self.finished)
-        self.proc.errorOccurred.connect(self.proc_error)
-        self.proc.start(sys.executable, args)
-
-    def proc_error(self, err):
-        if err == QProcess.ProcessError.FailedToStart:
-            self.fail("The builder's own program did not start (%s)." % sys.executable)
-            self.proc = None
-            self.busy(False)
-
-    def read(self):
-        text = self.pending + bytes(self.proc.readAllStandardOutput()).decode("utf-8", "replace")
-        lines = text.split("\n")
-        self.pending = lines.pop()
-        for line in lines:
-            self.line(line.rstrip("\r"))
+        self.error = ""
+        self.proc = Build(args)
+        self.proc.line.connect(self.line)
+        self.proc.ended.connect(self.finished)
+        self.proc.start()
 
     def line(self, line):
         if line.startswith("@@step "):
@@ -322,9 +369,11 @@ class Window(QWidget):
         self.log.appendPlainText("\n" + text)
         self.log.moveCursor(QTextCursor.MoveOperation.End)
 
-    def finished(self, code, _status):
-        if self.pending:
-            self.line(self.pending)
+    def finished(self, code):
+        if self.proc and self.proc.failed_to_start:
+            self.error = "The builder's own Python did not start (%s): %s" % (python_exe(), self.proc.failed_to_start)
+        if self.proc:
+            self.proc.wait()
         self.proc = None
         self.busy(False)
         if self.built and code == 0:
@@ -375,8 +424,8 @@ class Window(QWidget):
             if QMessageBox.question(self, "Stop the build?", "A build is running. Stop it and close?") != QMessageBox.StandardButton.Yes:
                 e.ignore()
                 return
-            self.proc.kill()
-            self.proc.waitForFinished(3000)
+            self.proc.stop()
+            self.proc.wait(5000)
         e.accept()
 
 

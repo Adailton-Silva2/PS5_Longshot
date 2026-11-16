@@ -196,6 +196,7 @@ def compile_one(job):
 
 
 def main():
+    global GEN
     p = argparse.ArgumentParser()
     p.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 4) - 2))
     p.add_argument("--compile-only", action="store_true")
@@ -215,6 +216,17 @@ def main():
     gen_dir = os.path.join(OUT, "gen")
     logo_rgba.write(os.path.join(gen_dir, "longshot_logo.h"))
     ui_fonts.write(os.path.join(gen_dir, "ui_fonts.cpp"))
+    if a.kit and not os.path.exists(os.path.join(GEN, "a64_suyu.h")):
+        # (no lift here: rt64/a64.h, which the runtime includes, includes the lift's two headers. a64_suyu.h is a64-kit's own,
+        # made from suyu's translator and not from a game (a64_rtgen.py); a64_fpx.h is the game's fast-path helpers, static
+        # inline functions only lifted code calls, so an empty one compiles the runtime to the same objects)
+        GEN = os.path.join(OUT, "kit-gen")
+        sys.path.insert(0, os.path.join(kit.KIT, "lift"))
+        import a64_rtgen
+        os.makedirs(GEN, exist_ok=True)
+        a64_rtgen.write(GEN)
+        with open(os.path.join(GEN, "a64_fpx.h"), "w") as f:
+            f.write("/* (ps5/build.py --kit: no game, no fast-path helpers) */\n")
     jobs = jobs_for(rt64, gen_dir)
     if a.kit:
         jobs = [j for j in jobs if not os.path.basename(j[1]).startswith("game_")]
