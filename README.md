@@ -13,15 +13,9 @@
 </h4>
 
 <p align="center">
-  <a href="https://longshot.magicbean.dev/"><b>Website</b></a> |
-  <a href="https://longshot.magicbean.dev/download"><b>Download</b></a> |
-  <a href="https://discord.gg/magicbean"><b>Discord</b></a> |
-  <a href="#project-status">Status</a> |
-  <a href="#install-and-play">Install and play</a> |
-  <a href="#build-from-source">Build from source</a> |
-  <a href="#how-it-works">How it works</a> |
-  <a href="#want-to-help">Want to help?</a> |
-  <a href="#license">License + Credits</a>
+  <a href="ps5/builder/README.md"><b>The PS5 Builder</b></a> |
+  <a href="ps5/README.md"><b>The port</b></a> |
+  <a href="https://longshot.magicbean.dev/">Longshot for PC (upstream)</a>
 </p>
 
 > [!IMPORTANT]
