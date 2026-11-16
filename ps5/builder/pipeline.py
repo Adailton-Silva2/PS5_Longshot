@@ -357,7 +357,10 @@ def check(a):
             "import nup, unpack, zbic\n"
             "assert os.path.exists(zbic.DLL), 'the ZBIC library is not in the kit: ' + zbic.DLL\n"
             "assert zbic.lib().zbic_content_size(b'ZBIC', 4) < 0\n"
-            "print('game file reader: loads, with its ZBIC library')\n")
+            # (and reads what it writes: ps5/builder/zbic_check.c. A library that did not stopped every Linux build of v0.1.1)
+            "r = zbic.lib().zbic_selftest()\n"
+            "assert r == 0, 'the ZBIC library does not unpack its own frames (zbic_selftest %d): ' % r + zbic.DLL\n"
+            "print('game file reader: loads, and its ZBIC library unpacks what it packs')\n")
     run([sys.executable, "-I", "-c", code, src], env=env, what="the lifter's parts")
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:

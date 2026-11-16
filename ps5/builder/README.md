@@ -70,4 +70,11 @@ start (a test run's own switches file takes the place of `longshot_env.txt`, and
   earlier. Since v0.1.1 the library comes ready in each package and `--check` asks for it; the real game file's program,
   read from the console's copy by the packaged Linux and Windows builders (the Windows one under Wine), comes out the
   same as the files every build was made from.
+- **v0.1.1 and v0.1.2 on Linux could not unpack the game's program**: "ZBIC: decompression failed (-2 of 63201744
+  bytes)". Their `zbic.so` was compiled by the release runner's GCC 11, and that build wrote ZBIC frames and read none
+  (the same sources by GCC 14 or clang read them; the Windows library, compiled by the pinned LLVM, was right). The fix
+  for v0.1.0 had been tried with a library made on this PC, not with the published AppImage. Since v0.1.3 both systems'
+  library is compiled by the pinned LLVM and has a self-test (`zbic_check.c`) that `--check` runs, so the release's own
+  check jobs fail on a library that does not read what it writes. The other helper, `liba64emit.so`, was compared on
+  400,000 of the game's instructions: the runner's GCC 11 build and this PC's give the same C.
 - **macOS**: not packaged.

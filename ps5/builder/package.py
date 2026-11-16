@@ -147,7 +147,7 @@ def native_parts(system, vulkan, cache, top, kit):
         cc, cxx = "gcc", "g++"
         tool, lib, extra = os.path.join(top, "tools", "bin", "ps5-native-tool"), os.path.join(kit_lift, "liba64emit.so"), ["-static"]
         emit_flags = ["-shared", "-fPIC", "-static-libstdc++", "-static-libgcc"]
-        zbic_lib, zbic_flags = "zbic.so", ["-shared", "-fPIC", "-static-libgcc"]
+        zbic_lib, zbic_flags = "zbic.so", ["-shared", "-fPIC"]
     objs = []
     for f in ZLIB_SOURCES:
         o = os.path.join(build, f[:-2] + ".o")
@@ -161,7 +161,13 @@ def native_parts(system, vulkan, cache, top, kit):
     zbic_src = os.path.join(ROOT, "third_party", "zbic")
     zbic_dir = os.path.join(kit, "src", "third_party", "zbic")
     os.makedirs(zbic_dir, exist_ok=True)
-    run([cc, "-O2", "-w", "-DZSTD_ZBIC_SUPPORT=1", "-I", zbic_src, os.path.join(zbic_src, "zstd.c"), os.path.join(zbic_src, "zbic_api.c")] +
+    # (compiled by the pinned LLVM on both systems, as Longshot's own builds compile it: the Linux runner's GCC 11 made a
+    # library that read no ZBIC frame (zbic_check.c). On Linux llvm-mingw's clang is told the PC's own target; its C library
+    # is the build PC's)
+    zbic_cc = [cc] if system == "windows-x64" else \
+        [os.path.join(unpack(fetch("llvm-linux", cache), os.path.join(cache, "llvm-linux")), "bin", "clang"), "--target=x86_64-linux-gnu"]
+    run(zbic_cc + ["-O2", "-w", "-DZSTD_ZBIC_SUPPORT=1", "-I", zbic_src, os.path.join(zbic_src, "zstd.c"),
+                   os.path.join(zbic_src, "zbic_api.c"), os.path.join(HERE, "zbic_check.c")] +
         zbic_flags + ["-o", os.path.join(zbic_dir, zbic_lib)])
     for f in ("LICENSE", "PROVENANCE.md"):
         shutil.copy2(os.path.join(zbic_src, f), os.path.join(zbic_dir, f))
