@@ -2225,11 +2225,16 @@ int main(int argc, char **argv) {
            program share 13.2 GB: textures of at most 512 texels, the largest left out and every ASTC one
            kept as BC3. At 1024 texels Kokiri Forest had ~1 GB free but Hyrule Castle Town ran out on arrival (std::bad_alloc
            with 32 MiB left, two runs of three ending there); at 512 the town has 180-500 MiB free and plays. The game runs
+           (Longshot, 2026-11-16: 1024 again. In Kokiri Forest at 1920x1080 it holds 135 MB more of textures than 512 and
+           leaves 3.1 GB free against 3.2; 2048 holds 540 MB more and takes the renderer past its own 2560 MB. Since the 512
+           limit the port keeps the last GB for the game and makes textures small while memory is short (vk_texture.cpp
+           ps5_tex_reserve). Hyrule Castle Town has not been played at 1024 with those: RX_VK_TEX_MAX_DIM=512 in the game
+           folder's env file is the old limit.) The game runs
            at 26-40 fps in the forest on these cores with the GPU half idle:
            PS5_MihawkGen's network makes every other frame, shown on an even line (65 fps out of 33); FSR 3.1's frame
            interpolation is off (RX_VK_FSR_FG=1 puts it back where RX_VK_MIHAWKGEN=0 leaves the frame to it). */
         static const char *const defaults[][2] = {
-            {"RX_VK_TEX_MAX_DIM", "512"}, {"RX_VK_TEX_SKIP_MB", "16"}, {"RX_VK_ASTC_BC_ALL", "1"},
+            {"RX_VK_TEX_MAX_DIM", "1024"}, {"RX_VK_TEX_SKIP_MB", "16"}, {"RX_VK_ASTC_BC_ALL", "1"},
             {"RX_VK_ASTC_BC_MB", "0"}, {"RX_VK_FRAMEGEN_MULT", "2"}, {"RX_VK_PACE", "1"},
             {"RX_VK_FSR_FG", "0"},
             /* (every shader translated before the first play, where hookshot_shaders.bin is beside the game, without the
