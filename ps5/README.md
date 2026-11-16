@@ -8,7 +8,7 @@ A new game runs from the title screen through the opening to Link's house (10 mi
 loads that autosave, walks out of the house and around Kokiri Forest. Frame rates the log gives: 59.9 at the title and
 in movies, about 40 in the opening's scenes, 50 in Link's house, 35 in the forest (measured with a screenshot taken
 every 120 presents). No crash or GPU fault in five runs. Not tried: beyond the forest, sound by ear, a real controller.
-`ps5/build-title.sh` is still PS5_Hookshot's (see "Building").
+Players build it with the desktop builder, `ps5/builder` (an AppImage and a portable Windows folder).
 
 Frame generation is on from the start: PS5_MihawkGen's network makes one frame between each two of the game's, so the
 forest's 31.5 game frames are 63 shown a second, evenly, on the 60 Hz mode. `HOS_PS5_HZ=120` takes the 119.88 Hz mode:
@@ -77,8 +77,8 @@ VMA `v3.3.0`.
 
 ## Building
 
-`ps5/build-title.sh` is still PS5_Hookshot's (it clones sibling projects and names Hookshot); until it is rewritten, the
-steps by hand, with the dependencies of an earlier PS5_Hookshot build linked into `.local/`:
+For players there is the builder (`ps5/builder/README.md`). A developer's whole build, with the dependencies
+`ps5/builder/build_kit.sh` fetches and builds into `.local/`:
 
 ```
 export PS5_VULKAN=<a built PS5_Vulkan at 7f492b4c> PS5_MIHAWKGEN=<PS5_MihawkGen>

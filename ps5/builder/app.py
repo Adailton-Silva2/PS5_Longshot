@@ -434,6 +434,21 @@ def main():
     app.setApplicationName("Longshot PS5 Builder")
     w = Window()
     w.show()
+    if "--self-test" in sys.argv:
+        # (the release workflow's: the window made and shown, the build's own check run through it as a build is, then closed.
+        # Exit 0 when the check ended well)
+        from PyQt6.QtCore import QTimer
+        result = {"code": 1}
+        log = []
+        check = Build(["-I", "-u", PIPELINE, "--check"])
+        check.line.connect(lambda line: (log.append(line), print(line, flush=True)))
+        check.ended.connect(lambda code: (result.update(code=0 if code == 0 and any(l == "@@done check" for l in log) else 1), app.quit()))
+        QTimer.singleShot(200, check.start)
+        QTimer.singleShot(240000, app.quit)
+        app.exec()
+        check.wait(5000)
+        print("self-test: the window opened (%dx%d), the check %s" % (w.width(), w.height(), "passed" if result["code"] == 0 else "FAILED"), flush=True)
+        return result["code"]
     return app.exec()
 
 

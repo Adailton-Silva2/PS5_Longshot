@@ -325,6 +325,51 @@ def title(kit, info, work, elf, native, out, model):
     return app
 
 
+def check(a):
+    """--check: the builder's own parts on this PC, with no game: the kit, the tools, the lifter's packages and its helper
+    library, and one small file compiled for the console. What the release workflow runs on each system's package."""
+    kit = find_kit(a.kit)
+    info = json.load(open(os.path.join(kit, "kit.json")))
+    say("kit: %s (%s), %d objects" % (info["longshot"], info["title_id"], len(info["objects"])))
+    missing = [n for n in info["objects"] if not os.path.exists(os.path.join(kit, "obj", n))]
+    if missing:
+        raise Stop("the kit lacks %d of its objects (%s)" % (len(missing), missing[0]))
+    clang, lld, nm, native = (find_tool(n, kit, a.tools) for n in ("clang", "ld.lld", "llvm-nm", "ps5-native-tool"))
+    for tool, args in ((clang, ["--version"]), (lld, ["--version"]), (nm, ["--version"])):
+        r = subprocess.run([tool] + args, capture_output=True, text=True)
+        if r.returncode:
+            raise Stop("%s does not run (exit %d): %s" % (tool, r.returncode, (r.stdout + r.stderr)[-300:]))
+        say("%s: %s" % (os.path.basename(tool), (r.stdout + r.stderr).splitlines()[0]))
+    r = subprocess.run([native], capture_output=True, text=True)
+    if "ps5-native-tool" not in r.stdout + r.stderr:
+        raise Stop("%s does not run: %s" % (native, (r.stdout + r.stderr)[-300:]))
+    say("ps5-native-tool: runs")
+    src, env = python_env(kit, a.work or ".")
+    code = ("import sys, os; k = sys.argv[1]; sys.path[:0] = [os.path.join(k, 'nx2'), os.path.join(k, 'third_party', 'a64-kit', 'lift'), "
+            "os.path.join(k, 'third_party', 'a64-kit', 'tools')]\n"
+            "import numpy, capstone, lz4, zstandard, unicorn\n"
+            "import a64emit\n"
+            "text = a64emit.translate([(0x10000, 0x91000420)])[0][0]\n"
+            "assert 'c->x[0]' in text, text\n"
+            "print('lifter: its packages and its helper library load; ADD X0, X1, #1 ->', text.strip())\n")
+    run([sys.executable, "-I", "-c", code, src], env=env, what="the lifter's parts")
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        c = os.path.join(tmp, "check.c")
+        with open(c, "w") as f:
+            f.write("#include <stdint.h>\n#include <string.h>\nuint64_t check(const char *s) { return strlen(s) + UINT64_C(1); }\n")
+        place = lambda x: x.replace("{kit}", kit)
+        flags = [place(x) for x in info["target_flags"]] + ["-march=znver2", "-O1"]
+        r = subprocess.run([clang] + flags + ["-c", c, "-o", os.path.join(tmp, "check.o")], capture_output=True, text=True)
+        if r.returncode:
+            raise Stop("clang did not compile for the console: %s" % (r.stdout + r.stderr)[-600:])
+        out = subprocess.run([nm, os.path.join(tmp, "check.o")], capture_output=True, text=True).stdout
+        if " T check" not in out:
+            raise Stop("the compiled check has no function: %s" % out)
+    say("clang: compiles for the console (x86_64-sie-ps5, the kit's SDK)")
+    say("@@done check")
+
+
 def build(a):
     kit = find_kit(a.kit)
     info = json.load(open(os.path.join(kit, "kit.json")))
@@ -350,9 +395,10 @@ def build(a):
 
 def main():
     ap = argparse.ArgumentParser(description="Longshot PS5 Builder: the PS5 title folder from your own game file")
-    ap.add_argument("--game", required=True, help="the game: a .nup file, or a folder with its exefs")
-    ap.add_argument("--out", required=True, help="where the title folder goes")
-    ap.add_argument("--model", required=True, choices=sorted(MODELS),
+    ap.add_argument("--check", action="store_true", help="check the builder's own parts on this PC (no game is needed), and stop")
+    ap.add_argument("--game", help="the game: a .nup file, or a folder with its exefs")
+    ap.add_argument("--out", help="where the title folder goes")
+    ap.add_argument("--model", choices=sorted(MODELS),
                     help="the console the folder is for: base (PS5 and PS5 Slim) or pro (PS5 Pro)")
     ap.add_argument("--kit")
     ap.add_argument("--tools")
@@ -360,8 +406,10 @@ def main():
     ap.add_argument("--jobs", type=int, default=0, help="compiles at once (default: by the cores and the memory free)")
     ap.add_argument("--lift-jobs", type=int, default=0, help="the translation's processes (default: the lifter's own rule)")
     a = ap.parse_args()
+    if not a.check and not (a.game and a.out and a.model):
+        ap.error("--game, --out and --model are needed (or --check)")
     try:
-        build(a)
+        check(a) if a.check else build(a)
     except Stop as e:
         say("@@error " + str(e).replace("\n", " | "))
         print(str(e), file=sys.stderr)

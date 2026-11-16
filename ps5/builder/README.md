@@ -5,17 +5,34 @@ A desktop tool: a player chooses their own game file and gets the PS5 title fold
 
 | File | What it is |
 |---|---|
-| `make_kit.py` | Collects everything of the title that is not made from the game, compiled already, into `dist/kit` (after a whole `ps5/build.py` build). No game content. |
-| `pipeline.py` | The build: the game's program read out of the `.nup`, translated to C, compiled, linked with the kit, signed, laid out. Python only, the same on every system. `--game --out --model base|pro [--jobs]`. |
-| `app.py` | The window (PyQt6): game file, output folder, the console's model, Build, the five steps, a progress bar, the log, Stop, and Send to PS5 over FTP. Runs `pipeline.py` as a process. |
-| `package.py` | The package for a system: python-build-standalone, llvm-mingw's LLVM (its clang has the PS5 target), `ps5-native-tool`, the kit. `dist/builder/LongshotPS5Builder-<system>.tar.xz`. |
+| `build_kit.sh` | The kit from a fresh clone on Linux, with no game: fetches and builds RADV, FFmpeg, the SDK and the rest at pinned revisions, compiles the runtime and the renderer (`ps5/build.py --kit`), runs `make_kit.py`. |
+| `make_kit.py` | Lays the kit out in `dist/kit`: everything of the title that is not made from the game, compiled already. No game content. |
+| `pipeline.py` | The build: the game's program read out of the `.nup`, translated to C, compiled, linked with the kit, signed, laid out. Python only, the same on every system. `--game --out --model base|pro [--jobs]`; `--check` checks the builder's own parts with no game. |
+| `app.py` | The window (PyQt6): game file, output folder, the console's model, Build, the five steps, a progress bar, the log, Stop, and Send to PS5 over FTP. Runs `pipeline.py` as a process. `--self-test` opens it and runs the check. |
+| `package.py` | The packages, both made on Linux: `--system linux-x64` an AppImage, `--system windows-x64` a portable folder in a zip (cross-built). python-build-standalone, llvm-mingw's LLVM (its clang has the PS5 target), `ps5-native-tool` and the lifter's helper library for the system, the kit. Every download is checked by SHA-256. |
+| `launcher.c` | Windows: `LongshotPS5Builder.exe`, the portable folder's start. No installer. |
 
 ```
-PS5_VULKAN=... PS5_MIHAWKGEN=... python3 -I ps5/build.py            # the whole title, once
-PS5_VULKAN=... PS5_MIHAWKGEN=... python3 -I ps5/builder/make_kit.py
-PS5_VULKAN=... python3 -I ps5/builder/package.py --system linux-x64
-dist/builder/linux-x64/LongshotPS5Builder/longshot-ps5-builder      # the window; --cli --game F --out D without it
+bash ps5/builder/build_kit.sh                                  # the kit (30 to 60 minutes the first time)
+python3 -I ps5/builder/package.py --system linux-x64           # dist/builder/LongshotPS5Builder-<version>-x86_64.AppImage
+python3 -I ps5/builder/package.py --system windows-x64         # dist/builder/LongshotPS5Builder-<version>-windows-x64.zip
 ```
+
+## Releases
+
+`.github/workflows/builder-release.yml` runs when a release is **published** on GitHub: it builds the kit
+(ubuntu-24.04), makes both packages (ubuntu-22.04), starts each on its own system (`--check` and the window's
+`--self-test` on ubuntu-22.04 and windows-latest), and only then attaches the four files to the release:
+
+    LongshotPS5Builder-<tag>-x86_64.AppImage        (+ .sha256)
+    LongshotPS5Builder-<tag>-windows-x64.zip        (+ .sha256)
+
+To cut one: `gh release create ps5-v0.1.0 --title "..." --notes "..."` (or the Releases page). The tag names the
+files. "Run workflow" on the Actions page does everything but the upload and keeps the packages as the run's
+artifacts: a rehearsal. No game file is used anywhere in it.
+
+The Windows package is a folder: unpack the zip anywhere and start `LongshotPS5Builder.exe`. It is not one file: the
+compiler, Python and the kit are 880 MB unpacked, and a single self-unpacking program would unpack them at every start.
 
 ## The console's profile
 
@@ -34,15 +51,18 @@ start (a test run's own switches file takes the place of `longshot_env.txt`, and
 
 ## State (2026-11-16)
 
-- **Linux x64**: packaged (193 MB, 1 GB unpacked). A clean build through `pipeline.py` with this PC's clang 19 made a
-  title that was sent with the window's FTP sender and played into Kokiri Forest on the console at 32 fps. A clean
-  build with the package itself (its Python, its clang 23.1.5: 36 minutes of compiling at 6 jobs) made a title that
-  played the same test for its 230 s: 33.7 fps, 68 shown a second, no fault. The window was driven headless with a
-  stand-in build (success and
-  failure); not by hand on a desktop.
-- **Reading a `.nup`** was not exercised here: the tests gave the folder with the game's `exefs`, which the game field
-  takes as well (`--game <folder>`).
-- **Windows x64, macOS**: not packaged. `package.py` names their downloads; `ps5-native-tool` has to be built for each
-  (llvm-mingw can cross-build the Windows one; the Mac one needs a Mac or zig), and `liba64emit` (the lifter's helper,
-  `third_party/a64-kit/lift/build_emit.py`) is in the kit for Linux only.
-- The kit is made on Linux from a finished build; `kit.json` names the revisions it came from.
+- **The kit from a fresh clone** (`build_kit.sh`, no game) has the same runtime objects as a whole build's, but for the
+  version stamp. An AppImage made from it built a title from the game's `exefs`; that title has not run on the console
+  yet (the earlier packages' titles did: Kokiri Forest at 32 to 34 fps, Pro and base profile).
+- **Linux**: the AppImage (278 MB) passes `--check` and `--self-test` here, runs a whole build from the read-only image
+  with nothing installed, and its lifter needs no compiler.
+- **Windows**: the zip (279 MB) is cross-built here. Under Wine its Python, compiler, linker, signing tool and helper
+  library run, one game file compiles to the same object as on Linux, and a link and signing from the same objects gives
+  the same `eboot.bin` byte for byte. Wine cannot load numpy or Qt (its own gaps), so the lifter and the window have
+  **not** run on Windows: the workflow's `check-windows` job is their first real run.
+- **The workflow has not run on GitHub**: the repository is private and its Actions minutes are used up. Each job's
+  commands were run here by hand, on Debian, not on the runners' Ubuntu images. Rehearse it with "Run workflow" once
+  the repository is public, before the first release.
+- **Reading a `.nup`** was not exercised: the tests gave the folder with the game's `exefs`, which the game field
+  takes as well.
+- **macOS**: not packaged.
