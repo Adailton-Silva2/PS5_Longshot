@@ -351,7 +351,13 @@ def check(a):
             "import a64emit\n"
             "text = a64emit.translate([(0x10000, 0x91000420)])[0][0]\n"
             "assert 'c->x[0]' in text, text\n"
-            "print('lifter: its packages and its helper library load; ADD X0, X1, #1 ->', text.strip())\n")
+            "print('lifter: its packages and its helper library load; ADD X0, X1, #1 ->', text.strip())\n"
+            # (the game file's reader, as a build starts it: its imports, and the library a ZBIC-compressed main is unpacked
+            # with, which must be there ready: a player has no compiler to build it with)
+            "import nup, unpack, zbic\n"
+            "assert os.path.exists(zbic.DLL), 'the ZBIC library is not in the kit: ' + zbic.DLL\n"
+            "assert zbic.lib().zbic_content_size(b'ZBIC', 4) < 0\n"
+            "print('game file reader: loads, with its ZBIC library')\n")
     run([sys.executable, "-I", "-c", code, src], env=env, what="the lifter's parts")
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:

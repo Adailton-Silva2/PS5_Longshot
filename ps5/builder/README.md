@@ -64,6 +64,10 @@ start (a test run's own switches file takes the place of `longshot_env.txt`, and
   check on windows-latest among them (the lifter's parts and the window started there for the first time). The
   published AppImage, downloaded again, matches its checksum and passes `--check`. The released kit was compiled on the
   runner (clang 18): a title built with it has not run on a console, and a whole build has not run on a Windows PC.
-- **Reading a `.nup`** was not exercised: the tests gave the folder with the game's `exefs`, which the game field
-  takes as well.
+- **Reading a `.nup`**: v0.1.0 could not. The game's main program is ZBIC-compressed in a real dump, and the library
+  that unpacks it (`third_party/zbic`) was built on first use, by a compiler a player does not have: the build stopped
+  at its first step, on Windows and on Linux. Every test until then had given the folder of program files unpacked
+  earlier. Since v0.1.1 the library comes ready in each package and `--check` asks for it; the real game file's program,
+  read from the console's copy by the packaged Linux and Windows builders (the Windows one under Wine), comes out the
+  same as the files every build was made from.
 - **macOS**: not packaged.

@@ -120,8 +120,11 @@ def version():
 
 
 def native_parts(system, vulkan, cache, top, kit):
-    """ps5-native-tool (PS5_Vulkan tooling/native: the ELF made the console's executable, and signed) and the lifter's helper
-    library (third_party/a64-kit/lift/a64emit.cpp), for the system: their C++ runtime linked in, zlib compiled in"""
+    """ps5-native-tool (PS5_Vulkan tooling/native: the ELF made the console's executable, and signed) and the lifter's two
+    helper libraries, for the system, their runtime linked in: a64emit (third_party/a64-kit/lift/a64emit.cpp), and zbic
+    (third_party/zbic), which unpacks the game's main program where the dump has it ZBIC-compressed (nx2/zbic.py). Both
+    are built on first use where there is a compiler; a player has none, so they come ready (v0.1.0 came without zbic:
+    reading a real .nup stopped there)"""
     native = os.path.join(vulkan, "tooling", "native")
     if not os.path.exists(os.path.join(native, NATIVE_SOURCES[0])):
         sys.exit("package: no PS5_Vulkan sources at %s (git submodule update --init ps5/deps/PS5_Vulkan, or PS5_VULKAN)" % vulkan)
@@ -139,10 +142,12 @@ def native_parts(system, vulkan, cache, top, kit):
         cc, cxx = (os.path.join(mingw, "bin", "x86_64-w64-mingw32-" + n) for n in ("clang", "clang++"))
         tool, lib, extra = os.path.join(top, "tools", "bin", "ps5-native-tool.exe"), os.path.join(kit_lift, "a64emit.dll"), ["-static"]
         emit_flags = ["-shared", "-static", "-fms-extensions", "-D_CRT_SECURE_NO_WARNINGS"]
+        zbic_lib, zbic_flags = "zbic.dll", ["-shared", "-static"]
     else:
         cc, cxx = "gcc", "g++"
         tool, lib, extra = os.path.join(top, "tools", "bin", "ps5-native-tool"), os.path.join(kit_lift, "liba64emit.so"), ["-static"]
         emit_flags = ["-shared", "-fPIC", "-static-libstdc++", "-static-libgcc"]
+        zbic_lib, zbic_flags = "zbic.so", ["-shared", "-fPIC", "-static-libgcc"]
     objs = []
     for f in ZLIB_SOURCES:
         o = os.path.join(build, f[:-2] + ".o")
@@ -152,6 +157,14 @@ def native_parts(system, vulkan, cache, top, kit):
     run([cxx, "-std=c++20", "-O2", "-w", "-I", zlib] + [os.path.join(native, f) for f in NATIVE_SOURCES] + objs + extra + ["-o", tool])
     run([cxx, "-std=c++20", "-O2", "-w", emit_src[0]] + emit_flags + ["-o", lib])
     open(lib + ".sha1", "w").write(key)
+    # (nx2/zbic.py takes the library beside the sources as it is: SRC there is <kit>/src/third_party/zbic)
+    zbic_src = os.path.join(ROOT, "third_party", "zbic")
+    zbic_dir = os.path.join(kit, "src", "third_party", "zbic")
+    os.makedirs(zbic_dir, exist_ok=True)
+    run([cc, "-O2", "-w", "-DZSTD_ZBIC_SUPPORT=1", "-I", zbic_src, os.path.join(zbic_src, "zstd.c"), os.path.join(zbic_src, "zbic_api.c")] +
+        zbic_flags + ["-o", os.path.join(zbic_dir, zbic_lib)])
+    for f in ("LICENSE", "PROVENANCE.md"):
+        shutil.copy2(os.path.join(zbic_src, f), os.path.join(zbic_dir, f))
     if system == "windows-x64":
         run([cc, "-O2", "-municode", "-mwindows", "-static", os.path.join(HERE, "launcher.c"), "-o", os.path.join(top, "LongshotPS5Builder.exe")])
 
