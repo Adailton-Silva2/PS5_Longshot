@@ -156,9 +156,10 @@ Measured on a PS5 Pro, in Kokiri Forest, at 1920x1080:
 - Played so far: a new game from the title screen through the opening to Link's house, a later start from that
   autosave, and Kokiri Forest. **Nothing beyond the forest has been played**, and sound and a real controller were
   not checked by a person: the test runs used scripted input.
-- **It also runs on a base PS5** (PS5 and PS5 Slim), built with the builder's PS5 / PS5 Slim profile. The numbers here
-  are a Pro's: the base console's frame rates were not measured. Its memory was, on a Pro started in the base
-  console's mode (12 GB): the forest plays with about 2 GB free.
+- **It also runs on a base PS5** (PS5 and PS5 Slim), built with the builder's PS5 / PS5 Slim profile, at **about 20
+  frames a second less than a Pro**. That figure is from play on a base console, not from a logged run; the other
+  numbers here are a Pro's. The base console's memory was measured, on a Pro started in the base console's mode
+  (12 GB): the forest plays with about 2 GB free.
 
 [ps5/README.md](ps5/README.md) has the measurements.
 
