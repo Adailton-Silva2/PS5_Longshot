@@ -455,6 +455,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | HDR contrast | 50% to 200% around mid grey, in steps of 5 (while HDR is on) | 100% |
 | | HDR tone mapper | Vanilla (the game's curve), PsychoV35 (RenoDX's; with HDR set to Native). Compatible DLSS/DLAA, FSR 4/native AA and shared-chain FSR 3.1 upscaling run automatically; `RX_VK_PSYCHOV35_DLSS=0` disables that compatibility route. Off and the spatial/FXAA TAAU replacement support PsychoV35 directly. FSR 3.1 FG remains separately opt-in and 2x only; legacy own-input FSR upscaling remains unsupported | Vanilla |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
+| | Shadow resolution | Auto (for the card's memory), Game's (1600), High (2200), Highest (3072): the sun's shadow maps, applies at once | Auto |
 | | GPU device | Auto, or each graphics card by name (after a restart) | Auto |
 | | Threaded rendering | Auto, On, Off (after a restart). Auto is On with 12 or more processor threads for the game | Auto |
 | Audio | Volume | 0 to 100%, in steps of 5 | 100% |
@@ -502,10 +503,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Developer: ASTC as RGBA8 | Off, On (after a restart) | Off |
 | | Developer: Intel shader compiles | Auto, Side by side, One at a time (after a restart; Intel graphics on Windows only) | Auto |
 
-- **Quality preset** sets Render resolution, Window scaling filter, Sharpness, Frame pacing, Game speed and Profile
-  for a card with that much memory; how much video memory the textures use comes from the card itself. It leaves the
-  Upscaler and Frame generation as you chose them: with DLSS, FSR 3.1 or FSR 4, the preset's resolution becomes their
-  nearest mode. Changing most other rows yourself sets it back to Custom.
+- **Quality preset** sets Render resolution, Window scaling filter, Sharpness, Frame pacing, Game speed, Profile and
+  Shadow resolution (back to Auto) for a card with that much memory; how much video memory the textures use comes from the card itself.
+  It leaves the Upscaler and Frame generation as you chose them: with DLSS, FSR 3.1 or FSR 4, the preset's resolution
+  becomes their nearest mode. Changing most other rows yourself sets it back to Custom.
 - **Auto (this PC)**, which a first start begins on, chooses for the PC it runs on: the memory tier from the card's
   video memory (an integrated GPU, a Steam Deck or a card without mesh shaders at Minimum), DLSS on an NVIDIA RTX card
   or FSR 4 on an AMD RX 9000 where the build has them (else the game's own upscaler). It leaves the Output resolution as
@@ -622,6 +623,13 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 - **Anisotropic filtering** keeps textures sharp on surfaces seen at a slant: the paths and floors ahead of Link. The game
   asks for 1x or 2x, which at a PC's resolutions smears the ground a few metres off; 16x costs little on most cards, and
   Game's is the console's own. `RX_VK_ANISO=<n>` sets it for one run (0: the game's).
+- **Shadow resolution** sets the size of the sun's shadow maps. The game draws them 1600 pixels a side, which at a PC's
+  resolutions turns the shadows of thin things near Link (the drawbridge's chains, fences, ivy) into stair steps. High
+  (2200) and Highest (3072) are the game's own larger sizes, from its own table: by their size, Highest takes about
+  113 MB of video memory against the game's 31 MB, and on an RTX 4090 0.05 to 0.07 ms more GPU time a frame. Auto, the
+  default, picks by the card's memory, the Quality preset's tier or else the one Auto (this PC) chose: the game's size on
+  Minimum and Low (4 and 6 GB), High on Balanced (8 GB), Highest from High (12 GB) up. Choosing a preset puts the row back
+  on Auto. It applies at once and is saved as `shadow_resolution`.
 - **Upscaler Off** (`dlss=6` in `longshot_options.ini`) is for slow GPUs and for measuring: no DLSS, no FSR, and not the
   game's own network either, which otherwise runs on every frame (at the game's usual 3/4 share it scales the 3D up and
   smooths its edges; at 100% a pass of the same kind still smooths them). In its place the 3D is stretched to the output
