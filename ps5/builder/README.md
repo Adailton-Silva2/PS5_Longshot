@@ -27,7 +27,10 @@ The folder is built for one model (`pipeline.py` `MODELS`), chosen in the window
 | PS5 / PS5 Slim (`base`) | `0x140040`: a base-generation process, 12,016 MiB | `RX_VK_TEX_MAX_DIM=512` |
 
 The base value was measured on a Pro, which then runs the title in the base console's mode (ps5/README.md): no base
-console has run it. The base folder with its 512-texel line has been built, not yet run.
+console has run it. The base folder, sent to the Pro, started as a base-generation process (12,016 MiB) and played the
+forest test for its 230 s with 2.0 GB free at the least and no fault. A start as a player has it (no test switches)
+shows the title reading the folder's `longshot_env.txt`; the 512-texel line's effect in play was not measured in that
+start (a test run's own switches file takes the place of `longshot_env.txt`, and a player's file may not script input).
 
 ## State (2026-11-16)
 
