@@ -5737,15 +5737,62 @@ bool async_on() {
 void readback_fell_back(int what) {
     (what == 0 ? bh_st.rb_fallback : what == 1 ? bh_st.tex_page_only : what == 2 ? bh_st.tex_exact : bh_st.rb_exact)++;
 }
+#ifdef _WIN32
+/// (longshot) The logical processors of the cores of the fastest kind in the calling thread's processor group: the highest
+/// EfficiencyClass, a hybrid CPU's performance cores; every core on a CPU of one kind (replay_thread_main)
+uint64_t fastest_kind_cpus() {
+    DWORD len = 0;
+    GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &len);
+    if (!len) return 0;
+    std::vector<uint8_t> buf(len);
+    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)buf.data(), &len)) return 0;
+    GROUP_AFFINITY ga{};
+    const WORD group = GetThreadGroupAffinity(GetCurrentThread(), &ga) ? ga.Group : 0;
+    uint64_t mask = 0;
+    int best = -1;
+    for (DWORD at = 0; at + sizeof(DWORD) * 2 <= len;) {
+        const auto* e = (const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)(buf.data() + at);
+        if (!e->Size) break;
+        if (e->Relationship == RelationProcessorCore && e->Processor.GroupCount && e->Processor.GroupMask[0].Group == group) {
+            const int cls = e->Processor.EfficiencyClass;
+            const uint64_t m = (uint64_t)e->Processor.GroupMask[0].Mask;
+            if (cls > best) best = cls, mask = m;
+            else if (cls == best) mask |= m;
+        }
+        at += e->Size;
+    }
+    return mask;
+}
+#endif
 void replay_thread_main() {
     SetThreadDescription(GetCurrentThread(), L"mkw_vk replay");
     fps_render_thread();   // (the FPS counter's render lane is this thread's)
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     // (on the core the host keeps free of the game's threads, hos_reserved_cpus: its last physical one)
+    // (longshot) Windows: its ideal processor there, and free to go to the other cores of the fastest kind when another
+    // program's thread takes it: the game's threads are kept off the core, other programs' are not. Kept to the core alone, a
+    // thread at priority 15 (Intel's PresentMon service, which the Intel Graphics Software overlay runs) took its one usable
+    // logical processor for 30-40 ms at a time (Windows had parked the other) and the replay waited, ready to run, until it was
+    // done: 14-37 frames over 40 ms in each 40 s run in Castle Town's market on an i5-13600K with an Arc B580, none with the
+    // thread free to move. RX_VK_RT_STRICT_PIN=1: the reserved core alone, as before (and elsewhere than on Windows)
     if (host->reserved_cpus) {
         if (const uint64_t m = host->reserved_cpus()) {
-            SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)m);
-            logf("vk: the replay thread runs on logical processors %#llx, kept from the game's threads", (unsigned long long)m);
+            uint64_t use = m;
+#ifdef _WIN32
+            static const bool strict = env_on("RX_VK_RT_STRICT_PIN");
+            if (!strict) {
+                DWORD_PTR proc = 0, sys = 0;
+                if (!GetProcessAffinityMask(GetCurrentProcess(), &proc, &sys)) proc = 0;
+                use |= fastest_kind_cpus() & (uint64_t)proc;
+            }
+#endif
+            SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)use);
+#ifdef _WIN32
+            if (use != m) SetThreadIdealProcessor(GetCurrentThread(), (DWORD)(63 - __builtin_clzll(m)));
+#endif
+            logf("vk: the replay thread runs on logical processors %#llx, kept from the game's threads%s", (unsigned long long)m,
+                 use != m ? " (its ideal processor there; free to go to the other fastest cores when another program takes it)" : "");
+            if (use != m) logf("vk: the replay thread may run on logical processors %#llx", (unsigned long long)use);
         }
     }
     // (longshot, the render thread) A present that comes while a queue is stopped at a wait for an event the CPU signals is
@@ -6348,6 +6395,7 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_SKIP_OPENING) return opts.skip_opening;
         if (id == HOS_OPT_FPS_CAP) return opts.fps_cap;
         if (id == HOS_OPT_HOLD_TOGGLE) return opts.hold_toggle;
+        if (id == HOS_OPT_MOUSE_INVERT_X) return opts.mouse_invert_x;
         if (id == HOS_OPT_SKIP_TITLE) return opts.skip_title != 0;
         if (id == HOS_OPT_RENDER_THREAD) return async_on();   // (host/nvn_native.c: the present poll answered at once)
         return id == 0 ? opts.realtime : id == 1 ? menu_is_open() : id == 2 ? resolution_auto() && !temporal_full_scale() : id == 3 ? (temporal_full_scale() ? 10000 : resolution_scale()) : id == 4 ? opts.pad_background : id == 5 ? opts.text_speed : id == 6 ? opts.mouse_native :
