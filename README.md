@@ -460,7 +460,9 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Threaded rendering | Auto, On, Off (after a restart). Auto is On with 12 or more processor threads for the game | Auto |
 | Audio | Volume | 0 to 100%, in steps of 5 | 100% |
 | | Mute in background | Off, On | Off |
-| | Audio output | Auto, Stereo, 5.1, Mono (layout changes after a restart; Mono/Stereo live on stereo output) | Auto |
+| | Output device | Default or a named Windows playback device; applies live | Default |
+| | Speaker layout | Auto, Stereo, 5.1, Mono (layout changes after a restart; Mono/Stereo live on stereo output) | Auto |
+| | Microphone | Off, Default, or each microphone by name | Default |
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
 | | FPS counter size | Auto, Small, Medium, Large | Auto |
@@ -471,7 +473,6 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Text speed | Normal, 2x, 4x, Instant | Normal |
 | | Text size | Original, 110%, 125%, 150%, 175% (dialogue, Navi and signs) | Original |
 | | Skip title screen | Off, On (after a restart) | Off |
-| | Microphone | Off, Default, or each microphone by name | Default |
 | | Game language | The game's 16 languages, each by its own name (after a restart) | `language.txt`'s, else English (US) |
 | | Menu language | Auto (the game's language), or English, Português (Brasil), Español (Latinoamérica), Español (España), Français, Deutsch, Italiano, Nederlands, Polski, Русский, 日本語, 한국어, 简体中文, 繁體中文 | Auto |
 | | Discord status | Off, On ("Playing Longshot" and the time played in your Discord status, while Discord runs on this PC) | On |
@@ -712,13 +713,17 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   follow a curve so they sound about even: 50% is a quarter of the level (-12 dB). **Mute in background** silences the
   game while another window has the focus; an overlay such as Steam's or Discord's does not count as another window
   while the game was in front.
-- **Audio output** is the speakers the game mixes its sound for. Auto is 5.1 when your default output device has 5.1
+- **Output device**, under Audio, selects the Windows playback endpoint by its persistent ID, with Default following
+  the system output. Changes briefly restart the audio stream. A missing endpoint falls back to Default and is retried;
+  its saved choice is retained. `HOS_AUDIO_DEVICE` overrides selection for that run without changing the saved choice.
+  Named playback selection is Windows-only; Linux retains the default output.
+- **Speaker layout** is the speakers the game mixes its sound for. Auto is 5.1 when the selected/default output device has 5.1
   or more speakers, else stereo; Stereo or 5.1 chooses one whatever the device has (5.1 on stereo speakers is mixed
   down). Mono averages the stereo channels into both ears, for one-sided hearing or one earbud. Mono/Stereo
   changes apply live while output is stereo; changing the channel layout (from or to 5.1) needs a restart.
   Auto never applies the mono average. Saved `audio_output` values remain 0 Auto, 1 Stereo, 2 5.1; Mono is 3.
   For one run, `HOS_AUDIO_CHANNELS=2` or `6` chooses the channel layout over the menu (6 leaves Mono inactive).
-- **Microphone** is what the ocarina hears when the game's own microphone option is on (an instrument, or humming).
+- **Microphone**, also under Audio, is what the ocarina hears when the game's own microphone option is on (an instrument, or humming).
   Default follows Windows' default recording device; the list shows up to 64 recording devices by name, and a change
   applies at once. Physical and virtual inputs share that limit; devices after the first 64 reported by the audio backend
   are not listed. A chosen microphone that is unplugged stays chosen (shown as not connected): Default stands in until it is
