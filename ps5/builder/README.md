@@ -21,8 +21,9 @@ dist/builder/linux-x64/LongshotPS5Builder/longshot-ps5-builder      # the window
 
 - **Linux x64**: packaged (193 MB, 1 GB unpacked). A clean build through `pipeline.py` with this PC's clang 19 made a
   title that was sent with the window's FTP sender and played into Kokiri Forest on the console at 32 fps. A clean
-  build with the package itself (its Python, its clang 23.1.5: 36 minutes of compiling at 6 jobs) made a title too;
-  that one has **not** run on the console yet. The window was driven headless with a stand-in build (success and
+  build with the package itself (its Python, its clang 23.1.5: 36 minutes of compiling at 6 jobs) made a title that
+  played the same test for its 230 s: 33.7 fps, 68 shown a second, no fault. The window was driven headless with a
+  stand-in build (success and
   failure); not by hand on a desktop.
 - **Reading a `.nup`** was not exercised here: the tests gave the folder with the game's `exefs`, which the game field
   takes as well (`--game <folder>`).
