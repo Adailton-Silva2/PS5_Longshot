@@ -483,6 +483,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Disable camera centering | Off, On | Off |
 | | Mouse sensitivity | 0.10 to 5.00, in steps of 0.10 | 1.00 |
 | | Invert mouse vertical | Off, On | Off |
+| | Invert mouse horizontal | Off, On | Off |
 | | Invert camera X | Off, On | Off |
 | | Invert camera Y | Off, On | Off |
 | | Camera speed | 50% to 400%, in steps of 25 | 100% |
