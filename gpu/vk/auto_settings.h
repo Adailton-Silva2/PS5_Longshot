@@ -45,7 +45,7 @@ struct Choice {
 };
 
 // (upscaler_rows.h's, kept here so the rules compile on their own; the test checks they agree)
-enum { GAME = 0, DLSS = 1, FSR4 = 4 };
+enum { GAME = 0, DLSS = 1, FSR3 = 3, FSR4 = 4 };
 enum { RES_QUALITY = 3, RES_PERFORMANCE = 4, RES_BALANCED = 5, RES_ULTRA_PERFORMANCE = 6 };
 
 // The Render resolution each preset sets (vk_menu.cpp apply_preset; tests/test_auto_settings.py checks they agree): the tier's
@@ -100,6 +100,15 @@ inline Choice choose(const Hardware& h) {
     }
     // The upscaler: the one the card has hardware for, else the game's own (on every card, and what the presets were tuned
     // on). At Minimum the game's own at its lowest share is the lightest
+#ifdef __PROSPERO__
+    // (PS5: AMD FSR 3.1, built from AMD's shader sources and so in the title itself (vk_fsr3.cpp), at the tier's Render
+    // resolution: at 100% it is FSR 3.1's own anti-aliasing. The console's GPU is AMD's; the game's own network is still
+    // on the Upscaler row)
+    if (true) {
+        c.upscaler = FSR3;
+        add(c, "AMD FSR 3.1");
+    } else
+#endif
     if (c.tier >= 2 && h.rtx && h.dlss_built) {
         c.upscaler = DLSS;
         c.resolution = c.tier == 2 ? RES_PERFORMANCE : c.tier == 3 ? RES_BALANCED : RES_QUALITY;
@@ -145,7 +154,7 @@ inline uint64_t fingerprint(const Hardware& h, uint32_t vendor_id, uint32_t devi
     const uint64_t parts[] = {vendor_id, device_id, h.vram_mb >> 8, (uint64_t)h.screen_w, (uint64_t)h.screen_h,
                               (uint64_t)h.dlss_built, (uint64_t)h.fsr4_built, (uint64_t)h.mesh_native,
 #ifdef __PROSPERO__
-                              2,   // (PS5: the choice's own number, raised when the console's rule changes: chosen again)
+                              3,   // (PS5: the choice's own number, raised when the console's rule changes: chosen again)
 #endif
                               };
     for (uint64_t p : parts) f = (f ^ p) * 1099511628211ull;
