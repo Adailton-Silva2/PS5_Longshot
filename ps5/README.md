@@ -15,6 +15,11 @@ forest's 31.5 game frames are 63 shown a second, evenly, on the 60 Hz mode. `HOS
 with `RX_VK_FRAMEGEN_MULT=3` 90 are shown (the network's), with `4` 120 (the renderer's own interpolation: the network
 did not start at 4x), the game held at 30 in both. Measured, not judged by eye.
 
+Base PS5: not run on one. On the Pro in the base console's mode (`attribute3` 0x140040 in `param.json`: kernel
+"proc gen:2", 12,016 MiB of direct memory against the Pro mode's 13,232) the title loads the autosave and plays Kokiri
+Forest for the test's 230 s with no fault and no "memory short" line: 9.7 GB taken, 1.9 GB free at the least against
+3.2 GB. The processor and GPU are still the Pro's there, so the base console's frame rate is not known.
+
 Resolution: the console starts at the docked profile with the full picture (the Balanced preset), 1920x1080. The
 Output resolution chosen in the menu (`output_res=` in `longshot_options.ini`) picks the display mode at the next start
 when it is 1920x1080, 2560x1440 or 3840x2160; `HOS_PS5_DISPLAY` overrides it. In Kokiri Forest, where the processor is
