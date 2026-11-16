@@ -10,6 +10,12 @@ in movies, about 40 in the opening's scenes, 50 in Link's house, 35 in the fores
 every 120 presents). No crash or GPU fault in five runs. Not tried: beyond the forest, sound by ear, a real controller.
 `ps5/build-title.sh` is still PS5_Hookshot's (see "Building").
 
+Resolution: the console starts at the docked profile with the full picture (the Balanced preset), 1920x1080. The
+Output resolution chosen in the menu (`output_res=` in `longshot_options.ini`) picks the display mode at the next start
+when it is 1920x1080, 2560x1440 or 3840x2160; `HOS_PS5_DISPLAY` overrides it. In Kokiri Forest, where the processor is
+the limit: 35 fps at PS5_Hookshot's handheld profile at half the picture, 31 to 32 at 1920x1080, 29 at 2560x1440, about
+3 GB of memory free in each. Textures are still at most 512 texels (PS5_Hookshot's limit for Hyrule Castle Town's memory).
+
 The title is **PPSA99025, Longshot**, so PS5_Hookshot's PPSA99024 on a console is left alone.
 
 ## Branches

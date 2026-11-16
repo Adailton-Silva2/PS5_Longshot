@@ -59,6 +59,14 @@ constexpr int kTierResolution[] = {0, 4, 2, 1, 1, 1};
 // the memory saves. The tier sets the scaling rows only: the VRAM budgets are the card's own (texture_budget.h, mirror_budget.h),
 // the sizes these presets gave the cards they were for
 inline int tier_of(const Hardware& h) {
+#ifdef __PROSPERO__
+    // (PS5: Balanced, the full picture at the docked profile. Its GPU reports as integrated, which meant Minimum: half the
+    // picture's sides and the handheld profile. Measured in Kokiri Forest, where the processor is the limit: 35 fps at
+    // Minimum, 32 at the full 1920x1080, 29 at 2560x1440, with 3 GB of memory free in each. The memory is the title's own
+    // account, not the tier's: vk_vma.cpp ps5_render_budget)
+    (void)h;
+    return 3;
+#endif
     if (h.integrated || h.handheld || !h.mesh_native) return 1;
     const uint32_t mb = h.vram_mb;
     int t = mb <= 4608 ? 1 : mb <= 6656 ? 2 : mb <= 11776 ? 3 : mb <= 13312 ? 4 : 5;
@@ -77,6 +85,10 @@ inline Choice choose(const Hardware& h) {
     Choice c;
     c.tier = tier_of(h);
     char b[160];
+#ifdef __PROSPERO__
+    if (true) add(c, "PlayStation 5: Balanced");
+    else
+#endif
     if (h.integrated) add(c, "integrated GPU: Minimum");
     else if (h.handheld) add(c, "handheld: Minimum");
     else if (!h.mesh_native) add(c, "no mesh shaders (the compute fallback): Minimum");
@@ -131,7 +143,11 @@ inline int resolution_for(const Choice& c, int engine, int resolution, int chose
 inline uint64_t fingerprint(const Hardware& h, uint32_t vendor_id, uint32_t device_id) {
     uint64_t f = 1469598103934665603ull;
     const uint64_t parts[] = {vendor_id, device_id, h.vram_mb >> 8, (uint64_t)h.screen_w, (uint64_t)h.screen_h,
-                              (uint64_t)h.dlss_built, (uint64_t)h.fsr4_built, (uint64_t)h.mesh_native};
+                              (uint64_t)h.dlss_built, (uint64_t)h.fsr4_built, (uint64_t)h.mesh_native,
+#ifdef __PROSPERO__
+                              2,   // (PS5: the choice's own number, raised when the console's rule changes: chosen again)
+#endif
+                              };
     for (uint64_t p : parts) f = (f ^ p) * 1099511628211ull;
     return f;
 }

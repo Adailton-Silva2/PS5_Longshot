@@ -40,7 +40,21 @@ static void mode_wanted(void) {
     done = 1;
     const char *e = getenv("HOS_PS5_DISPLAY");
     int w = 0, h = 0;
-    if (e && sscanf(e, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) mode_w = w, mode_h = h;
+    if (e && sscanf(e, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+        mode_w = w, mode_h = h;
+        return;
+    }
+    /* (none asked for: the menu's Output resolution when it is one of the console's display sizes, so 2560x1440 chosen
+       there is shown on a 2560x1440 mode at the next start and not scaled down to 1920x1080; else 1920x1080) */
+    const char *hos_options_file(void);
+    FILE *f = fopen(hos_options_file(), "r");
+    if (!f) return;
+    char line[80];
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, "output_res=%dx%d", &w, &h) == 2 &&
+            ((w == 1920 && h == 1080) || (w == 2560 && h == 1440) || (w == 3840 && h == 2160)))
+            mode_w = w, mode_h = h;
+    fclose(f);
 }
 static int window_token;
 void *hos_sdl_window(const char *title, int width, int height) {
