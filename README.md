@@ -203,9 +203,8 @@ network. The title on the console does not look for updates.
 
 ## In-game menu
 
-Longshot's own menu (resolution, frame generation, sound, controls) is in the PS5 title too. It was written for a PC
-with a keyboard, and **it has not been opened on a console yet**: what follows is what the code does, not what was
-tried.
+Longshot's own menu (resolution, frame generation, sound, controls) is in the PS5 title too, opened and moved in with
+the controller.
 
 **Opening it:** press the **touch pad's click and Options together**. They are the Switch's − and +, and the menu
 opens on the two pressed together. The PS button stays the console's own. There is no keyboard or mouse on the
