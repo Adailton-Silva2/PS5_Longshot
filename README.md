@@ -463,6 +463,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Audio output | Auto, Stereo, 5.1, Mono (layout changes after a restart; Mono/Stereo live on stereo output) | Auto |
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
+| | FPS counter size | Auto, Small, Medium, Large | Auto |
+| | FPS counter details | Opens the FPS counter details page: Version and hardware at every level (Off, On; Off), then a line each of the Dev level (VRAM, Textures, Draws, Dispatches, Render passes, Draws skipped, Texture uploads, Pipelines built, GPU slot waits, Queue submits, Write-backs) and the CPU and GPU lines (Off, On; On) | Version and hardware off, every line on |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
 | | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |
@@ -676,7 +678,9 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   [Intel laptops](#intel-laptops). It applies after a restart.
 - **Game speed:** with Per frame, the game runs slower whenever it is below 60 fps. Real time keeps it at normal speed
   down to 15 fps.
-- **FPS counter** shows in a corner (**FPS counter position**; at the top right while the menu is open), at one of
+- **FPS counter** shows in a corner (**FPS counter position**; at the top right while the menu is open), as large as
+  **FPS counter size** says (Auto grows with the window, as the menu does; Small, Medium and Large keep the size Auto has
+  in a 720p, 1080p and 1440p window, whatever the window), at one of
   five levels. **FPS** is the number alone (an options file's old On); with frame generation on, it also shows the
   game's own rate and who makes the frames: `Base 60, DLSS FG` (NVIDIA DLSS Frame Generation), `FSR 3.1 FG` or `Built-in FG`. **Frame time** adds the game's frame time and its 1% low (the mean time of the slowest 1% of frames
   over the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
@@ -688,8 +692,9 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   each of the graph's frames as the parts its time went to, stacked, with their values under the graph; the values add up
   to the frame time: the game's own code (Game), the renderer's part on the game's thread (Renderer: handing
   over the frame's work, or all of its recording with Threaded rendering off), then the waits under
-  Waiting on: for work the render thread had not recorded yet (Render thread), for the GPU to finish work the game waits
-  on (GPU fence) and for the GPU at the present (GPU present), and last the frame's turn (Pacing: the frame rate cap,
+  Waiting on: with Threaded rendering, for the game's main thread to finish writing the frame (Game's main thread), for
+  the render thread (Render thread: work it had not recorded yet, or the frame before it had not replayed), for the GPU to
+  finish work the game waits on (GPU fence) and for the GPU at the present (GPU present), and last the frame's turn (Pacing: the frame rate cap,
   vsync, Reflex). The colours keep one meaning: blue the game's work, red the GPU, purple the render thread, grey pacing
   and idle. With Threaded rendering on, a second lane under the graph shows the render thread's own frame in parallel,
   on the same scale: recording, waiting for the parallel replay's workers and for a GPU slot, and idle. Then the GPU's
@@ -697,8 +702,12 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   the last 4 seconds (red marks on the graph where they happened, the usual cause of a stutter). **Dev** adds the
   renderer's own numbers, for debugging and bug reports: video memory used of what the driver allows (red past it), the
   textures held and their memory, draws, dispatches and render passes a frame, draws skipped a frame (red when any),
-  texture uploads a second and the pipelines built since the start, and under the frame time three lines: the CPU, the
-  GPU and its driver.
+  texture uploads a second, the pipelines built since the start, and the renderer's pressure a frame: its waits for a
+  recording slot (the GPU behind), its queue submits (the driver's and the kernel's time) and the GPU's results written
+  back to the game's memory (VRAM on a line of its own, the rest two to a line while they fit, else on a line of
+  their own); at the counter's foot four lines: the
+  version (as the menu's banner shows it), the CPU, the GPU and its driver, at every level too with **FPS counter details**'
+  Version and hardware at every level. The details page turns each of the Dev level's lines on or off.
 - **Volume** scales the game's whole sound, on top of the game's own sound settings and Windows' volume. Its steps
   follow a curve so they sound about even: 50% is a quarter of the level (-12 dB). **Mute in background** silences the
   game while another window has the focus; an overlay such as Steam's or Discord's does not count as another window
