@@ -43,6 +43,9 @@ struct Options {
     int sharpness = 0;    // 0 to 100
     int anisotropy = 4;   // (longshot) Anisotropic filtering: 0 the game's own (1x or 2x), 1 2x, 2 4x, 3 8x, 4 16x (the
                           // device's limit at most; gpu/vk/vk_draw.cpp aniso_override, RX_VK_ANISO over it)
+    int shadow_res = 0;   // (longshot) Shadow resolution, the sun's cascades: 0 Auto (the size for the card's memory,
+                          // menu_shadow_res), 1 the game's (1600), 2 2200, 3 3072 (host/oot_shadow.c: HOS_OPT_SHADOW_RES, 56).
+                          // The Quality presets set it back to Auto (apply_preset)
     int realtime = 1;     // game time follows the clock (host/nn_vi.c); 0: per frame (slower frames, slower game)
     int handheld = 0;     // the game's handheld profile: ~4 fps, softer; read once, at the start (host/nn_applet.c)
     int ultrawide = 1;    // the Aspect ratio row. Saved as ultrawide=, read once, at the start (host/hos_main.c): 1 the monitor's own
@@ -54,6 +57,10 @@ struct Options {
                           // blurred, 2 with black bars (nx2/oot_wide.py, vk_framegen.cpp)
     int show_fps = 0;     // (longshot) the FPS counter: 0 Off, 1 FPS, 2 Frame time, 3 Graph, 4 Breakdown (fps_stats.h; saved as fps_counter=, an old On is 1)
     int fps_corner = 0;   // (longshot) its corner: 0 top right, 1 top left, 2 bottom right, 3 bottom left
+    int fps_size = 0;     // (longshot) its size: 0 Auto (the window's height and Menu size), 1 Small, 2 Medium, 3 Large (fixed)
+    int fps_version_always = 0;   // (longshot) the version and the hardware lines at every level of the counter, not only at Dev
+    // (longshot) which of the Dev level's lines show: fps_stats.h's DevLine order, then the CPU, GPU and driver lines; all by default
+    int fps_dev_show[12] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     int menu_shortcut = 2;   // 0 Insert or F1, 1 F1 only, 2 Insert, F1 or Esc (F1 always opens the menu). 2 by default, as a PC
                              // game's pause menu; an older file's 0, the default it then was, moves to 2 (options_version 5)
     int compact_menu_key = 0; // 0 Right Shift, 1 Right Ctrl (key to switch to or open the compact menu)
@@ -70,6 +77,7 @@ struct Options {
     int walk_speed = 45;  // (longshot) how far the movement keys tilt the left stick while Link walks, percent, 15 to 90
                           // (host/nn_hid.c: HOS_OPT_WALK_SPEED, 50)
     int text_speed = 0;   // how fast dialogue prints: 0 the game's, 1 2x, 2 4x, 3 instant (host/nn_vi.c, nx2/oot_patches.py; HOS_TEXT_SPEED)
+    int transition_autosave = 1;
     int damage_taken = 1; // 0 Half, 1 Normal, 2 Double, 3 Quadruple (host/oot_damage.c)
     int fov = 100;        // vertical gameplay field of view, 50..150% of the game's current angle (host/oot_fov.c)
     int text_size = 0;    // dialogue and signs' text size: 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% (host/oot_text_size.c,
@@ -131,6 +139,7 @@ int menu_vsync();
 bool menu_threaded_rendering();
 void menu_set_gpu_count(int count);
 std::string driver_text();   // (vk_main.cpp: the driver as it names itself, for the log and Save my pipeline list)
+std::string device_name_text();   // (vk_main.cpp: the GPU the game runs on, as its driver names it)
 void menu_tick();             // (each frame shown: the keys, while the game's window has the focus)
 bool menu_is_open();
 /// (longshot) The game's scene tone mapped by PsychoV35: HDR set to Native on an HDR display, and the Tone mapper row so
@@ -144,6 +153,8 @@ int menu_heart_protection();
 int menu_player_flight();
 int menu_free_camera();
 int menu_link_speed();   // (Movement speed in percent, 100 while the tools are off)
+int menu_transition_autosave();
+int menu_shadow_res();   // (Shadow resolution, HOS_OPT_SHADOW_RES: the size drawn, Auto resolved)
 int menu_damage_taken();   // (Damage taken, HOS_OPT_DAMAGE_TAKEN: 1, Normal, while the tools are off)
 int menu_take_cheat_action();
 void menu_note_frame(bool game_frame, int shown = 1);   // (the frame rates the FPS counter shows)

@@ -97,6 +97,10 @@ Longshot's first version will be **v3.0.0**; the launcher's first will be **v1.0
 **Your game copy:** program `0400486024DEC000` · update **v131072** · build `e0f3ccfa`.
 Use a `.nup` file, or the `romfs` and `exefs` folders. Other game versions are not supported.
 
+**Check your copy before building:** choose your own game file or folders in the launcher. Its game-file check
+reports whether the build is supported; if it reports another build, compare that message with `e0f3ccfa` above.
+The launcher version (such as `v1.0.0-rc.4`) is separate from the game update and build identifiers.
+
 These are estimates from the [tested configurations catalogue](https://longshot.magicbean.dev/tested-configurations/), not a promise of a particular
 frame rate: the game runs on more than this, and performance depends on the resolution and settings you choose.
 
@@ -218,6 +222,7 @@ Before updating, copy your saves somewhere safe: the `user` folder in the game f
 | Your saves | The game in `bin` and its files |
 | `longshot_options.ini`: the menu's choices and your controls | `image.bin` and the shader list |
 | `longshot_env.txt` | `language.txt`, written again with the game's language |
+| | `texts`: the texts reworded for a PC, made again |
 | `mods` | |
 
 Without the launcher: from a clone, `git pull`, then `python -I nx2/make_game.py --update <game folder>`; a builder
@@ -450,6 +455,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | HDR contrast | 50% to 200% around mid grey, in steps of 5 (while HDR is on) | 100% |
 | | HDR tone mapper | Vanilla (the game's curve), PsychoV35 (RenoDX's; with HDR set to Native). Compatible DLSS/DLAA, FSR 4/native AA and shared-chain FSR 3.1 upscaling run automatically; `RX_VK_PSYCHOV35_DLSS=0` disables that compatibility route. Off and the spatial/FXAA TAAU replacement support PsychoV35 directly. FSR 3.1 FG remains separately opt-in and 2x only; legacy own-input FSR upscaling remains unsupported | Vanilla |
 | | Anisotropic filtering | Game's, 2x, 4x, 8x, 16x | 16x |
+| | Shadow resolution | Auto (for the card's memory), Game's (1600), High (2200), Highest (3072): the sun's shadow maps, applies at once | Auto |
 | | GPU device | Auto, or each graphics card by name (after a restart) | Auto |
 | | Threaded rendering | Auto, On, Off (after a restart). Auto is On with 12 or more processor threads for the game | Auto |
 | Audio | Volume | 0 to 100%, in steps of 5 | 100% |
@@ -457,6 +463,8 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Audio output | Auto, Stereo, 5.1, Mono (layout changes after a restart; Mono/Stereo live on stereo output) | Auto |
 | Gameplay | FPS counter | Off, FPS, Frame time, Graph, Breakdown, Dev | Off |
 | | FPS counter position | Top right, Top left, Bottom right, Bottom left | Top right |
+| | FPS counter size | Auto, Small, Medium, Large | Auto |
+| | FPS counter details | Opens the FPS counter details page: Version and hardware at every level (Off, On; Off), then a line each of the Dev level (VRAM, Textures, Draws, Dispatches, Render passes, Draws skipped, Texture uploads, Pipelines built, GPU slot waits, Queue submits, Write-backs) and the CPU and GPU lines (Off, On; On) | Version and hardware off, every line on |
 | | Menu size | Small, Medium, Large | Medium |
 | | Game speed | Per frame, Real time | Real time |
 | | Field of view | 50% to 150%, in steps of 5; applies immediately during gameplay | 100% (original) |
@@ -488,6 +496,7 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Menu shortcut | Insert or F1; F1 only; Insert, F1 or Esc | Insert, F1 or Esc |
 | | Compact menu key | Right Shift, Right Ctrl | Right Shift |
 | Debug | Debug tools | Off, On (while on, the tools below it: Heart protection, No-clip flight, Mark position, Return to mark, Set time, Inventory item, Change quantity, Free camera, Teleport, Switch age, Inventory, Movement speed) | Off |
+| | Autosave: | On or Off, available with Debug tools off. Enabling Debug tools switches Autosave to Off. Off skips supported autosaves, including the verified map transitions. You can still save manually. | On |
 | | Player: Damage taken | Half, Normal, Double, Quadruple (live, while Debug tools is on; Half rounds damage up to a quarter heart; Heart protection wins) | Normal |
 | | Developer: Save my pipeline list | Saves a zip of the pipelines your play built into Downloads ([below](#send-your-pipeline-list)) | |
 | | Developer: Descriptor reuse | Off, On (changes at once) | On |
@@ -496,10 +505,10 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 | | Developer: ASTC as RGBA8 | Off, On (after a restart) | Off |
 | | Developer: Intel shader compiles | Auto, Side by side, One at a time (after a restart; Intel graphics on Windows only) | Auto |
 
-- **Quality preset** sets Render resolution, Window scaling filter, Sharpness, Frame pacing, Game speed and Profile
-  for a card with that much memory; how much video memory the textures use comes from the card itself. It leaves the
-  Upscaler and Frame generation as you chose them: with DLSS, FSR 3.1 or FSR 4, the preset's resolution becomes their
-  nearest mode. Changing most other rows yourself sets it back to Custom.
+- **Quality preset** sets Render resolution, Window scaling filter, Sharpness, Frame pacing, Game speed, Profile and
+  Shadow resolution (back to Auto) for a card with that much memory; how much video memory the textures use comes from the card itself.
+  It leaves the Upscaler and Frame generation as you chose them: with DLSS, FSR 3.1 or FSR 4, the preset's resolution
+  becomes their nearest mode. Changing most other rows yourself sets it back to Custom.
 - **Auto (this PC)**, which a first start begins on, chooses for the PC it runs on: the memory tier from the card's
   video memory (an integrated GPU, a Steam Deck or a card without mesh shaders at Minimum), DLSS on an NVIDIA RTX card
   or FSR 4 on an AMD RX 9000 where the build has them (else the game's own upscaler). It leaves the Output resolution as
@@ -616,6 +625,13 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
 - **Anisotropic filtering** keeps textures sharp on surfaces seen at a slant: the paths and floors ahead of Link. The game
   asks for 1x or 2x, which at a PC's resolutions smears the ground a few metres off; 16x costs little on most cards, and
   Game's is the console's own. `RX_VK_ANISO=<n>` sets it for one run (0: the game's).
+- **Shadow resolution** sets the size of the sun's shadow maps. The game draws them 1600 pixels a side, which at a PC's
+  resolutions turns the shadows of thin things near Link (the drawbridge's chains, fences, ivy) into stair steps. High
+  (2200) and Highest (3072) are the game's own larger sizes, from its own table: by their size, Highest takes about
+  113 MB of video memory against the game's 31 MB, and on an RTX 4090 0.05 to 0.07 ms more GPU time a frame. Auto, the
+  default, picks by the card's memory, the Quality preset's tier or else the one Auto (this PC) chose: the game's size on
+  Minimum and Low (4 and 6 GB), High on Balanced (8 GB), Highest from High (12 GB) up. Choosing a preset puts the row back
+  on Auto. It applies at once and is saved as `shadow_resolution`.
 - **Upscaler Off** (`dlss=6` in `longshot_options.ini`) is for slow GPUs and for measuring: no DLSS, no FSR, and not the
   game's own network either, which otherwise runs on every frame (at the game's usual 3/4 share it scales the 3D up and
   smooths its edges; at 100% a pass of the same kind still smooths them). In its place the 3D is stretched to the output
@@ -662,22 +678,36 @@ HDR, Detail, and GPU and memory (last: the rows to change when something is wron
   [Intel laptops](#intel-laptops). It applies after a restart.
 - **Game speed:** with Per frame, the game runs slower whenever it is below 60 fps. Real time keeps it at normal speed
   down to 15 fps.
-- **FPS counter** shows in a corner (**FPS counter position**; at the top right while the menu is open), at one of
+- **FPS counter** shows in a corner (**FPS counter position**; at the top right while the menu is open), as large as
+  **FPS counter size** says (Auto grows with the window, as the menu does; Small, Medium and Large keep the size Auto has
+  in a 720p, 1080p and 1440p window, whatever the window), at one of
   five levels. **FPS** is the number alone (an options file's old On); with frame generation on, it also shows the
-  game's own rate and who makes the frames: `Base 60, DLSS FG` (NVIDIA DLSS Frame Generation), `FSR 3.1 FG` or `Built-in FG`. **Frame time** adds the game's frame time and its 1% low (the rate of the slowest 1% of frames over
-  the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
+  game's own rate and who makes the frames: `Base 60, DLSS FG` (NVIDIA DLSS Frame Generation), `FSR 3.1 FG` or `Built-in FG`. **Frame time** adds the game's frame time and its 1% low (the mean time of the slowest 1% of frames
+  over the last 10 seconds). From this level on, the number and the frame time are green at the Game frame rate cap's rate,
   amber under it and red under two thirds of it. (The cap's rate is the display's refresh instead with V-Sync On when
   that is slower; with Uncapped and V-Sync not On there is no line, and the colours are against 60.) **Graph** adds
   the frame times of the last 4 seconds (each point the slowest frame of its span, so no stutter is missed), with a
   dashed line at the Game frame rate cap's frame time and a red mark over frames that took more than twice it; its
-  scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** adds
-  where the frame's time went on the game's presenting thread, as a bar and in numbers: the game's own code (Game),
-  recording and submitting the GPU's work (Renderer), waiting for the GPU (GPU wait), and waiting for the frame's turn
-  (Pacing: the frame rate cap, vsync, Reflex); then the GPU's own time per frame, and the shaders built and draws left
-  out in the last 4 seconds (red marks on the graph where they happened, the usual cause of a stutter). **Dev** adds the
+  scale follows the usual frame, so a spike is drawn at the top rather than flattening the rest. **Breakdown** draws
+  each of the graph's frames as the parts its time went to, stacked, with their values under the graph; the values add up
+  to the frame time: the game's own code (Game), the renderer's part on the game's thread (Renderer: handing
+  over the frame's work, or all of its recording with Threaded rendering off), then the waits under
+  Waiting on: with Threaded rendering, for the game's main thread to finish writing the frame (Game's main thread), for
+  the render thread (Render thread: work it had not recorded yet, or the frame before it had not replayed), for the GPU to
+  finish work the game waits on (GPU fence) and for the GPU at the present (GPU present), and last the frame's turn (Pacing: the frame rate cap,
+  vsync, Reflex). The colours keep one meaning: blue the game's work, red the GPU, purple the render thread, grey pacing
+  and idle. With Threaded rendering on, a second lane under the graph shows the render thread's own frame in parallel,
+  on the same scale: recording, waiting for the parallel replay's workers and for a GPU slot, and idle. Then the GPU's
+  own time per frame and its share of the frame (it runs in parallel too), and the shaders built and draws left out in
+  the last 4 seconds (red marks on the graph where they happened, the usual cause of a stutter). **Dev** adds the
   renderer's own numbers, for debugging and bug reports: video memory used of what the driver allows (red past it), the
   textures held and their memory, draws, dispatches and render passes a frame, draws skipped a frame (red when any),
-  texture uploads a second and the pipelines built since the start.
+  texture uploads a second, the pipelines built since the start, and the renderer's pressure a frame: its waits for a
+  recording slot (the GPU behind), its queue submits (the driver's and the kernel's time) and the GPU's results written
+  back to the game's memory (VRAM on a line of its own, the rest two to a line while they fit, else on a line of
+  their own); at the counter's foot four lines: the
+  version (as the menu's banner shows it), the CPU, the GPU and its driver, at every level too with **FPS counter details**'
+  Version and hardware at every level. The details page turns each of the Dev level's lines on or off.
 - **Volume** scales the game's whole sound, on top of the game's own sound settings and Windows' volume. Its steps
   follow a curve so they sound about even: 50% is a quarter of the level (-12 dB). **Mute in background** silences the
   game while another window has the focus; an overlay such as Steam's or Discord's does not count as another window
@@ -780,8 +810,8 @@ puts them all back. A gamepad button taken from another Switch button swaps with
 with the next. Both gamepad inputs, bound keys and mouse buttons share the latch. Every Toggle starts Off.
 Plus, Minus, stick directions, Walk and ocarina note rows have no Toggle. Opening Insert, pressing Plus or Minus,
 losing focus, rebinding or Reset to defaults releases latched buttons. With Controller in background On, a new
-press can latch again behind another window. On Linux, other game dialogs do not necessarily clear the latch;
-press Insert to release it. There is no separate on-screen latch indicator.
+press can latch again behind another window. On Linux, any menu screen receiving pane focus also clears the latch,
+not only the pause page. Insert always releases it. There is no separate on-screen latch indicator.
 
 **Ocarina notes:** the page gains five rows, `Ocarina note (L)`, `(R)`, `(A)`, `(Y)`, `(X)`, unset by default: the game's own
 buttons play until you bind a note to a key or gamepad input of your own, and a bound note then answers only that input while
@@ -818,6 +848,11 @@ layout emulators use: `mods/<name>/romfs/...` holds files that replace or add to
 `mods/contents/<title id>/<name>/romfs` work too. A folder whose name starts with `-` or `_` is off. When two mods
 have the same file, the one whose whole path relative to `mods` sorts last (ignoring case) wins. Use `01-...`, `02-...`
 at the same level to set the order. Stop the game before changing mods, then restart.
+
+One of the game's texts names the console: the hint for playing the ocarina by microphone says to use its built-in one.
+The build rewords it for a PC ("your microphone") in your own text files, in each of the game's languages, into the game
+folder's `texts` folder, and the game reads those instead. A mod's own text file wins, and `HOS_TEXTS=0` in
+`longshot_env.txt` shows the game's own.
 
 Only RomFS mods are loaded. `exefs` patches (`.pchtxt`, `.ips`) are left out: Longshot compiles the game's code ahead
 of time, so patching its instructions would need a rebuild. The log (`longshot_log.txt`) names each mod and the files
