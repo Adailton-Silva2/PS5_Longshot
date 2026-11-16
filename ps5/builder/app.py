@@ -233,7 +233,7 @@ class Window(QWidget):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         self.ps5 = QLineEdit(self.settings.value("ps5", ""))
-        self.ps5.setPlaceholderText("Console's address, for example 192.168.0.190")
+        self.ps5.setPlaceholderText("Console's address, for example 192.168.1.50")
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
         self.port.setValue(int(self.settings.value("port", 2121)))

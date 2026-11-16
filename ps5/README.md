@@ -92,8 +92,8 @@ compile of a lifted chunk about 1.4 GB. The compile took 40 minutes at 6 jobs.
 Install and run (the control payload `ps5vkctl` on the console, port 9111):
 
 ```
-PS5_HOST=192.168.0.190 python3 $PS5_VULKAN/tools/deploy-title-folder.py dist/PPSA99025
-PS5_HOST=192.168.0.190 python3 ps5/tools/run.py NAME --seconds 150      # klog in work/runs/NAME.klog
+PS5_HOST=<console address> python3 $PS5_VULKAN/tools/deploy-title-folder.py dist/PPSA99025
+PS5_HOST=<console address> python3 ps5/tools/run.py NAME --seconds 150      # klog in work/runs/NAME.klog
 ```
 
 `ps5/tools/to-kokiri.sh NAME` starts a new game and presses A through the opening. To steer a run by hand, start it with
@@ -105,7 +105,7 @@ PS5_HOST=192.168.0.190 python3 ps5/tools/run.py NAME --seconds 150      # klog i
 
 | What | Where |
 |---|---|
-| Address | `192.168.0.190` |
+| Address | `PS5_HOST` (its address on your network) |
 | FTP | port `2121` |
 | ps5debug-NG | port `744` |
 | klogsrv (kernel log) | port `3232` |
