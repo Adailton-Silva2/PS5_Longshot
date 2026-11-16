@@ -2,7 +2,8 @@
 
     PS5_VULKAN=<built PS5_Vulkan> PS5_MIHAWKGEN=<PS5_MihawkGen> python3 -I ps5/builder/make_kit.py [--out dist/kit]
 
-Run after a whole ps5/build.py build of this checkout (work/ps5 holds its objects and its link). The kit holds the
+Run after `ps5/build.py --kit` (or a whole build) of this checkout: work/ps5 holds the objects. No game is needed: the
+kit's objects are the ones no game file goes into (ps5/builder/build_kit.sh does all of it from a fresh clone). The kit holds the
 objects of the runtime, the Vulkan back end, Dear ImGui, libopus and PS5_MihawkGen compiled for the console; RADV, FFmpeg,
 dav1d and zstd as libraries; the payload SDK's headers and libraries; the link's scripts and flags; the lifter's sources
 (nx2, host, third_party/a64-kit) and the title folder's own files. Nothing in it comes from a game: ps5/builder/pipeline.py
@@ -45,10 +46,12 @@ def main():
     b = load_build()
     kit = os.path.abspath(a.out)
     work = b.OUT
-    objects = [l for l in open(os.path.join(work, "objects.txt")).read().split("\n") if l]
-    missing = [o for o in objects if not os.path.exists(o)]
-    if missing or not os.path.exists(os.path.join(work, "link", "llvm-pie.elf")):
-        sys.exit("make_kit: build the title first (ps5/build.py): %s" % (missing[:3] or "no link in work/ps5/link"))
+    rt64 = os.path.join(work, "rt64")
+    jobs = b.jobs_for(rt64, os.path.join(work, "gen"))
+    objects = sorted(j[1] for j in jobs if not os.path.basename(j[1]).startswith("game_"))
+    missing = [o for o in objects if not os.path.exists(o) or not os.path.exists(o + ".key")]
+    if missing:
+        sys.exit("make_kit: compile the kit's objects first (ps5/build.py --kit): %s" % missing[:3])
     if os.path.exists(kit):
         shutil.rmtree(kit)
     os.makedirs(kit)
@@ -61,10 +64,21 @@ def main():
             continue
         copy(o, os.path.join(kit, "obj", name))
         kept.append(name)
-    copy(os.path.join(work, "link", "obj", "app_crt.o"), os.path.join(kit, "obj", "app_crt.o"))
 
     # ---- libraries ----
     vulkan, sdk = os.path.abspath(b.VULKAN), os.path.abspath(b.SDK)
+    # (the CRT and the stubs that name AGC's imports, as ps5/tools/link.sh makes them)
+    cc = lambda *args: subprocess.run(["sh", os.path.join(vulkan, "tooling", "prospero-clang18")] + list(args), check=True,
+                                      env=dict(os.environ, PS5_PAYLOAD_SDK=sdk, PS5_CLANG=os.environ.get("PS5_CLANG") or shutil.which("clang")))
+    cc("-std=c++20", "-O2", "-fno-exceptions", "-fno-rtti", "-c", os.path.join(vulkan, "tooling", "native", "app_crt.cpp"),
+       "-o", os.path.join(kit, "obj", "app_crt.o"))
+    os.makedirs(os.path.join(kit, "lib", "stubs"))
+    for lib, src in (("libSceAgc", "agc_canary_link_stub.c"), ("libSceAgcDriver", "agc_driver_canary_link_stub.c")):
+        o = os.path.join(kit, "lib", "stubs", lib + "_stub.o")
+        cc("-std=c11", "-O2", "-fPIC", "-c", os.path.join(vulkan, "vendor", "ps5", "sdk", "stubs", src), "-o", o)
+        subprocess.run([os.path.join(sdk, "bin", "prospero-lld"), "--shared", "-soname", lib + ".prx", "-o",
+                        os.path.join(kit, "lib", "stubs", lib + ".so"), o], check=True)
+        os.remove(o)
     archive = os.path.join(ROOT, ".local", "ps5-deps", "radv", "lib", "libvulkan_radeon.ps5.a")
     if not os.path.exists(archive):
         archive = os.path.join(vulkan, ".deps", "native", "radv-release", "lib", "libvulkan_radeon.ps5.a")
@@ -76,8 +90,6 @@ def main():
     for n in ("libavcodec.a", "libswscale.a", "libavutil.a", "libdav1d.a"):
         copy(os.path.join(b.FFMPEG, "lib", n), os.path.join(kit, "lib", n))
     copy(os.path.join(b.DEPS, "zstd", "lib", "libzstd.a"), os.path.join(kit, "lib", "libzstd.a"))
-    for n in ("libSceAgc.so", "libSceAgcDriver.so"):
-        copy(os.path.join(work, "link", "stubs", n), os.path.join(kit, "lib", "stubs", n))
     shutil.copytree(os.path.join(sdk, "target"), os.path.join(kit, "sdk", "target"), symlinks=False)
 
     # ---- the link: PS5_Vulkan's recipe, read from its own script, its paths made the kit's ----
@@ -121,8 +133,7 @@ printf '%s\0' "${radv_link_inputs[@]}"
         f.write("\n".join(sorted(exported)) + "\n")
 
     # ---- the game's compile flags, as ps5/build.py has them ----
-    rt64 = os.path.join(work, "rt64")
-    game = next(j for j in b.jobs_for(rt64, os.path.join(work, "gen")) if os.path.basename(j[1]).startswith("game_code_"))
+    game = next(j for j in jobs if os.path.basename(j[1]) == "game_a64_rt.o")
     game_places = [(rt64, "{rt64}"), (b.GEN, "{gen}"), (os.path.join(b.kit.KIT, "rt"), "{kit}/src/third_party/a64-kit/rt"),
                    (os.path.join(ROOT, "nx2", "rt"), "{kit}/src/nx2/rt")]
 

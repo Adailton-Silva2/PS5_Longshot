@@ -88,7 +88,8 @@ def jobs_for(rt64, gen_dir):
     game_fl = COMMON + ["-I" + rt64, "-I" + GEN, "-I" + os.path.join(kit.KIT, "rt"), "-I" + os.path.join(ROOT, "nx2", "rt"),
                         "-fno-strict-aliasing", "-mcx16", "-O1", "-mllvm", "-rotation-max-header-size=0", "-mllvm",
                         "-capture-tracking-max-uses-to-explore=5000", "-DA64_POLLING", "-DA64_WRITE_TRACK"]
-    chunks = sorted(f for f in os.listdir(GEN) if f.startswith("code_") and f.endswith(".c"))
+    # (no lifted game: --kit's build, which compiles none of it)
+    chunks = sorted(f for f in os.listdir(GEN) if f.startswith("code_") and f.endswith(".c")) if os.path.isdir(GEN) else []
     game = [os.path.join(GEN, c) for c in chunks] + \
         [os.path.join(GEN, f) for f in ("a64_table.c", "a64_hooks.c", "a64_suyu.c", "a64_stubs.c", "hos_image.c", "nvn2_exports.c")] + \
         [os.path.join(rt64, "a64_rt.c")]
@@ -198,14 +199,16 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 4) - 2))
     p.add_argument("--compile-only", action="store_true")
+    p.add_argument("--kit", action="store_true",
+                   help="only what is not made from the game, compiled for ps5/builder/make_kit.py: no game is needed")
     a = p.parse_args()
-    for need, what in ((os.path.join(GEN, "a64_table.c"), "the lifted game (nx2/lift.py --standalone --write)"),
+    for need, what in ((None if a.kit else os.path.join(GEN, "a64_table.c"), "the lifted game (nx2/lift.py --standalone --write)"),
                        (os.path.join(SDK, "bin", "prospero-lld"), "the PS5 payload SDK (PS5_PAYLOAD_SDK)"),
                        (os.path.join(VULKAN, "tools", "radv-link.sh"), "PS5_Vulkan (PS5_VULKAN)"),
                        (os.path.join(FFMPEG, "include", "libavcodec", "avcodec.h"), "FFmpeg (ps5/tools/build-ffmpeg.sh)"),
                        (os.path.join(DEPS, "zstd", "lib", "libzstd.a"), "zstd (ps5/tools/build-zstd.sh)"),
                        (pkg("vulkanheaders", "v1.4.345"), "the Vulkan headers (ps5/build-title.sh fetches them)")):
-        if not os.path.exists(need):
+        if need and not os.path.exists(need):
             sys.exit("ps5/build.py: missing %s: %s" % (what, need))
     os.makedirs(os.path.join(OUT, "obj"), exist_ok=True)
     rt64 = rtgen.write(os.path.join(OUT, "rt64"))
@@ -213,6 +216,8 @@ def main():
     logo_rgba.write(os.path.join(gen_dir, "longshot_logo.h"))
     ui_fonts.write(os.path.join(gen_dir, "ui_fonts.cpp"))
     jobs = jobs_for(rt64, gen_dir)
+    if a.kit:
+        jobs = [j for j in jobs if not os.path.basename(j[1]).startswith("game_")]
     # the longest first (the lifted chunks), so no long compile is left alone at the end
     jobs.sort(key=lambda j: -os.path.getsize(j[0]))
     print("ps5: %d files, %d jobs" % (len(jobs), a.jobs), flush=True)
@@ -229,6 +234,10 @@ def main():
     print("ps5: %d compiled, %d failed (%.0f s)" % (built, len(failed), time.time() - t0), flush=True)
     if failed:
         return 1
+    if a.kit:   # (the kit's objects, apart from a whole build's objects.txt)
+        with open(os.path.join(OUT, "kit-objects.txt"), "w") as f:
+            f.write("\n".join(sorted(j[1] for j in jobs)) + "\n")
+        return 0
     with open(os.path.join(OUT, "objects.txt"), "w") as f:
         f.write("\n".join(j[1] for j in jobs) + "\n")
     if a.compile_only:
