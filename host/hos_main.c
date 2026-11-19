@@ -1973,6 +1973,7 @@ static int game_main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--compile-shaders") && i + 1 < argc) i++;   /* (taken above) */
         else if (!strcmp(argv[i], "--user") && i + 1 < argc) hos_user_dir = argv[++i];
         else if (!strcmp(argv[i], "--trace")) hos_trace = 1;
+        else if (!strcmp(argv[i], "--restarted")) {}   /* (PS5: taken in main, host/ps5/win32_ps5.c hos_ps5_restart) */
         else if (!strcmp(argv[i], "--prepare-shaders")) {   /* (longshot) a build's last step: no game */
 #ifdef _WIN32
             _putenv("LONGSHOT_PREPARE_ONLY=1");
@@ -2274,6 +2275,12 @@ int main(int argc, char **argv) {
 #ifdef __PROSPERO__   /* (the console: standard error into klog, the shell's splash dismissed: host/ps5/platform.c) */
     void platform_init(const char *title_name);
     platform_init(HOS_GAME_TITLE);
+    {   /* (this start is the one hos_ps5_restart made, host/ps5/win32_ps5.c: its file, or --restarted) */
+        extern int hos_ps5_restarted;
+        for (int i = 1; i < argc; i++) hos_ps5_restarted |= !strcmp(argv[i], "--restarted");
+        if (unlink("/app0/restarted.txt") == 0) hos_ps5_restarted = 1;
+        if (hos_ps5_restarted) fprintf(stderr, "[ps5] started again by the title itself (--restarted)\n");
+    }
     void hos_ps5_quit_watch(void);
     hos_ps5_quit_watch();   /* (a test run's clean stop: host/ps5/win32_ps5.c) */
 #endif
