@@ -1064,6 +1064,21 @@ void pcache_init() {
     if (const size_t removed = PipelineCacheFile::cleanup_temporaries(dir))
         logf("vk: pipeline cache: %zu old temporary files removed", removed);
     pcache_path = dir + "longshot_vk_pipelines.bin";
+#ifdef __PROSPERO__
+    // (PS5: no pipeline cache of the game's own; the driver's disk cache (/app0/radv-shader-cache) is the one kept. Ours was never
+    // written on the console (the title never closes through its window), so it held in memory a copy of every pipeline built,
+    // ~0.9 MiB each: the first start's preparation reached 8.6 GB of heap at 5,096 of 29,525 pipelines and ran a base console out
+    // of memory. Without it RADV keeps what a pipeline uses alone (its memory cache holds weak references) and reads and writes
+    // its disk cache as before. RX_VK_PS5_NO_PCACHE=1 for now)
+    static const bool none = env_on("RX_VK_PS5_NO_PCACHE");   // (not the default yet: play with it is unmeasured)
+    if (none) {
+        static std::once_flag said;
+        std::call_once(said, [] { logf("vk: pipeline cache: none of the game's own on the console; the driver's disk cache "
+                                       "keeps the pipelines (RX_VK_PS5_NO_PCACHE=1)"); });
+        pcache_no_save = true;
+        return;
+    }
+#endif
     const bool off = pcache_load_off();
     pcache_no_save = off;
     pcache_drop_stale();   // (before the files are read)
@@ -9191,7 +9206,13 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
         if (next.load() >= total + threads.size()) break;
     }
     for (std::thread& t : threads) t.join();
+#ifdef __PROSPERO__
+    // (PS5: on the bar. The shipped list's programs and texture variants take minutes on the console after the seed's, and with no
+    // progress the bar stood at the seed's last program, which looked like a hang)
+    if (!background) state_list_prepare(progress);
+#else
     if (!background) state_list_prepare(nullptr);   // (in play it is too late for the precompile: an update's is state_list_run, before)
+#endif
     if (!env_on("RX_VK_SEED_CHECK")) seed_close();
     if (prepare_stopped()) {   // (closed: what was made is in the program cache already, the rest is made at the next start)
         logf("vk: shader preparation stopped at %zu of %zu (the window was closed): the next start goes on from there", done.load(),
@@ -9256,6 +9277,26 @@ void prepare_progress_log(const char* what, size_t done, size_t total, std::chro
 /// again at the next one (the close puts the file back as the start found it, crash_markers.h), and after two that crashed in it
 /// (or were killed), the notes are taken as they are (what a cache then lacks is made at its first draw, as on an install that
 /// was never prepared)
+#ifdef __PROSPERO__
+extern "C" uint64_t hos_ps5_direct_room(void);   // (host/ps5/win32_ps5.c: the title's free direct memory in all)
+#endif
+/// (PS5) The first start's pipelines in launches of their own, as many as the console's memory holds each time. Each pipeline the
+/// driver compiles leaves ~1-2 MiB of the title heap in use (measured: 4.6 to 10.3 GB over 3,188 pipelines on a base console, with
+/// or without the game's pipeline cache), so the 29,531 of the shipped list cannot be built in one process. A launch stops taking
+/// programs once less than RX_VK_PS5_WARM_ROOM_MB (2048) of direct memory is free, notes the programs it got through in
+/// longshot_pipelines.bin.warmed, and asks for a restart (precompile_wants_restart: vk_main.cpp starts the title again); the next
+/// launch leaves those out. The last one asks too: play then starts without the heap the compiles left
+std::atomic<bool> warm_wants_restart{false}, warm_long{false};
+// (PS5) what each warm thread builds now (program, note key, since when), for the memory floor's last line (rx_vk_inflight):
+// one pipeline's compile took over 5 GB in a few seconds on a base console, and the floor closing the title was all that said so
+struct WarmNow { std::atomic<uint64_t> prog{0}, note{0}; std::atomic<int64_t> since_ms{0}; };
+WarmNow warm_now[32];
+std::atomic<unsigned> warm_slots{0};
+thread_local int warm_slot = -1;
+bool precompile_wants_restart() { return warm_wants_restart.load(); }
+bool precompile_warm_long() { return warm_long.load(); }
+std::atomic<bool> warm_more{false};   // (stopped for memory: another launch goes on)
+bool precompile_warm_more() { return warm_more.load(); }
 void precompile_warm(void (*progress)(size_t done, size_t total)) {
     const auto t0 = std::chrono::steady_clock::now();
     const std::string warming = precompile_built_path() + ".warming";
@@ -9283,11 +9324,56 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         list.push_back(&r);
     }
     const size_t total = refs.size();
+    size_t skipped = 0;   // (notes of programs an earlier launch got through: PS5, longshot_pipelines.bin.warmed)
+#ifdef __PROSPERO__
+    const std::string warmed_path = precompile_built_path().substr(0, precompile_built_path().size() - 6) + ".warmed";
+    std::unordered_set<uint64_t> warmed_before;
+    if (FILE* f = fopen(warmed_path.c_str(), "rb")) {
+        for (uint64_t k; fread(&k, 8, 1, f) == 1;) warmed_before.insert(k);
+        fclose(f);
+    }
+    if (!warmed_before.empty()) {
+        std::vector<uint64_t> left;
+        for (const uint64_t k : progs)
+            if (warmed_before.count(k)) skipped += by_prog[k].size();
+            else left.push_back(k);
+        logf("vk: precompile: %zu programs' %zu noted pipelines built by an earlier launch: %zu programs left", warmed_before.size(),
+             skipped, left.size());
+        progs.swap(left);
+    }
+    warm_long.store(progs.size() >= 200);
+    static const uint64_t room_mb = getenv("RX_VK_PS5_WARM_ROOM_MB") ? strtoull(getenv("RX_VK_PS5_WARM_ROOM_MB"), nullptr, 10) : 2048;
+    std::atomic<bool> memory_out{false};
+    std::mutex warmed_mu;
+    std::vector<uint64_t> warmed_now;   // (programs this launch got through, not written yet: warmed_flush)
+    const auto warmed_flush = [&] {
+        std::vector<uint64_t> w;
+        {
+            std::lock_guard lk(warmed_mu);
+            w.swap(warmed_now);
+        }
+        if (w.empty()) return;
+        if (FILE* f = fopen(warmed_path.c_str(), "ab")) {
+            fwrite(w.data(), 8, w.size(), f);
+            fclose(f);
+        }
+    };
+    const auto out_of_room = [&] {
+        if (!memory_out.load() && room_mb && hos_ps5_direct_room() < (room_mb << 20)) {
+            memory_out.store(true);
+            logf("vk: precompile: %llu MiB of direct memory left: this launch stops here, the next goes on",
+                 (unsigned long long)(hos_ps5_direct_room() >> 20));
+        }
+        return memory_out.load();
+    };
+#else
+    const auto out_of_room = [] { return false; };
+#endif
     // (the compute pipelines after them, every kept compute program's, counted in the progress from the start: reported as the
     // notes' total once those were done, the screen read "32,623 / 32,623", 100%, "a few seconds left" while they were built, #714)
     const std::vector<uint64_t> computes = program_cache_compute_keys();
     const size_t all_n = total + computes.size();
-    std::atomic<size_t> done{0}, built{0}, failed{0}, no_program{0};
+    std::atomic<size_t> done{skipped}, built{0}, failed{0}, no_program{0};
     const std::string notes_path = pipe_notes_path();
     auto log_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     const unsigned threads = std::min(usable_cpus(), 16u);
@@ -9302,18 +9388,54 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
             ensure_layout(p);
             for (const NoteRef* r : list) {
                 if (r->variant != p.variant || prepare_stopped() || !pipe_note_at(in, r->at, note.get())) continue;
+#ifdef __PROSPERO__
+                if (out_of_room()) break;   // (between two builds too: the program is then not counted as got through)
+                if (warm_slot < 0) warm_slot = (int)std::min(warm_slots.fetch_add(1), 31u);
+                warm_now[warm_slot].prog = p.key, warm_now[warm_slot].note = r->key;
+                warm_now[warm_slot].since_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+#endif
                 found++;
                 const VkPipeline made = build_graphics(p, note->s, note_targets(*note), (VkPrimitiveTopology)note->topo);
+#ifdef __PROSPERO__
+                warm_now[warm_slot].note = 0;
+#endif
                 if (made) vkDestroyPipeline(dev.device, made, nullptr);   // (it is in the cache now: that is all it was built for)
                 (made ? built : failed)++;
             }
         });
         no_program += list.size() - std::min(found, list.size());
         done += list.size();
-    }, [] { return prepare_stopped(); }, [&](size_t) {
+#ifdef __PROSPERO__
+        if (!prepare_stopped() && !memory_out.load()) {
+            std::lock_guard lk(warmed_mu);
+            warmed_now.push_back(progs[i]);
+        }
+#endif
+    }, [&] { return prepare_stopped() || out_of_room(); }, [&](size_t) {
         if (progress) progress(done.load(), all_n);
         prepare_progress_log("noted pipelines", done.load(), total, t0, log_at);
+#ifdef __PROSPERO__
+        // (what this launch got through, into the file every 30 s: a launch the memory floor or a crash ends keeps it too)
+        static auto next_write = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        if (std::chrono::steady_clock::now() >= next_write) {
+            next_write = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+            warmed_flush();
+        }
+#endif
     });
+#ifdef __PROSPERO__
+    if (done.load() < total) warmed_flush();   // (the rest of what this launch got through)
+    if (memory_out.load() && !prepare_stopped()) {
+        warm_more.store(true);
+        warm_wants_restart.store(true);
+        crash_markers::end(warming);   // (a stop of its own, not a crash: the next launch is not counted as one after it)
+        logf("vk: precompile: %zu of %zu noted pipelines built so far (%zu in this launch); the title starts again for the rest",
+             done.load(), total, built.load());
+        return;
+    }
+    if (built.load() > 0 && !prepare_stopped()) warm_wants_restart.store(true);   // (the last part: play without its heap)
+#endif
     // (the compute pipelines too, every kept compute program's: a first start in start mode makes them all, and a load at a
     // create call only asks the caches, so on a new install a first dispatch found none (666 in one first session). Built
     // into the cache and let go, as the noted ones; only once those are all done)
@@ -9354,6 +9476,9 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
         crash_markers::end(warming);
+#ifdef __PROSPERO__
+        remove(warmed_path.c_str());   // (all built: the next preparation starts over)
+#endif
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
          "pipeline cache and let go (%zu and %zu not made, %zu whose program variant is not kept), on %u threads in %.1f s (the "
@@ -10954,3 +11079,19 @@ UniformUpload uniform_upload(uint64_t size) {
 }
 
 } // namespace mkwvk
+
+#ifdef __PROSPERO__
+/// (PS5, host/ps5/win32_ps5.c's memory floor, before it closes the title) the pipelines the first start's build has under way: which
+/// program, which note, for how long
+extern "C" void rx_vk_inflight(char* out, size_t n) {
+    using namespace mkwvk;
+    size_t at = 0;
+    out[0] = 0;
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    for (unsigned k = 0; k < std::min(warm_slots.load(), 32u) && at + 64 < n; k++)
+        if (const uint64_t note = warm_now[k].note.load())
+            at += (size_t)snprintf(out + at, n - at, " program %016llx note %016llx for %lld ms;",
+                                   (unsigned long long)warm_now[k].prog.load(), (unsigned long long)note,
+                                   (long long)(now - warm_now[k].since_ms.load()));
+}
+#endif
