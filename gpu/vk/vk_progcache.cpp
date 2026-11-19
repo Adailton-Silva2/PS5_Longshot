@@ -99,6 +99,10 @@ constexpr size_t kDiskHold = 8u << 20;
 constexpr size_t kDiskHold = 0;
 #endif
 std::atomic<size_t> disk_held{0};   // (bytes written to disk_out and not flushed: written under disk_mu)
+// (PS5) What a preparation holds, in memory: put into the streams in one call each when flushed. Into the streams record by
+// record, a record larger than their buffer was a write call of its own, ~60 ms under disk_mu: eight workers then spent 90% of
+// their time waiting on it (and on seed_translate's reads behind it), ~4-18 programs a second at 5-35% of the CPUs
+std::vector<uint8_t> disk_pend, idx_pend;
 int64_t disk_end = -1;   // (where the next record goes in the file: asked once, counted from then on; disk_mu)
 // (the records' heads, in the file's order, in longshot_programs.idx beside it: see disk_init)
 FILE* disk_idx = nullptr;
@@ -379,8 +383,11 @@ void get_info(Reader& r, Shader::Info& i) {
 
 namespace {
 void disk_flush_locked() {   // (the records before their index entries: disk_mu held)
+    if (disk_out && !disk_pend.empty()) fwrite(disk_pend.data(), 1, disk_pend.size(), disk_out);
     if (disk_out) fflush(disk_out);
+    if (disk_idx && !idx_pend.empty()) fwrite(idx_pend.data(), 1, idx_pend.size(), disk_idx);
     if (disk_idx) fflush(disk_idx);
+    disk_pend.clear(), idx_pend.clear();
     disk_held = 0;
 }
 }   // namespace
@@ -413,7 +420,8 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
     const uint32_t flags = *(const uint32_t*)o.data();
     std::vector<uint8_t> compressed;
     bool compressed_ok = false;
-#ifndef __PROSPERO__   // (PS5: the console's zstd only reads; records are kept as they are there)
+    // (PS5 too, since ps5/tools/build-zstd.sh builds the compressor: uncompressed, a whole preparation was ~5 GB written into the
+    // title folder at the console's few MB a second, the workers waiting on disk_mu)
     if (disk_zstd && o.size() >= 256) {
         compressed.resize(ZSTD_compressBound(o.size()));
         const size_t n = ZSTD_compress(compressed.data(), compressed.size(), o.data(), o.size(), 3);
@@ -422,7 +430,6 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
             compressed_ok = true;
         }
     }
-#endif
     const uint64_t stored = compressed_ok ? 8 + (uint64_t)compressed.size() : (uint64_t)o.size();
     const uint32_t kind = flags | (compressed_ok ? kCompressedKind : 0);
     const size_t head_size = disk_zstd ? kZstdHead : 16;
@@ -437,21 +444,26 @@ void program_cache_save(const Program& p, const std::vector<std::vector<uint32_t
     const int64_t at = disk_end;
     disk_end += (int64_t)head_size + (int64_t)stored;
     const bool hold = kDiskHold && disk_listing;   // (a preparation's: see kDiskHold)
-    fwrite(head, 8, 2, disk_out);
-    if (disk_zstd) fwrite(&kind, 4, 1, disk_out);
+    // (held: into disk_pend, written with the others at the flush; not held: into the stream and flushed now)
+    const auto out = [&](const void* data, size_t n) {
+        if (hold) disk_pend.insert(disk_pend.end(), (const uint8_t*)data, (const uint8_t*)data + n);
+        else fwrite(data, 1, n, disk_out);
+    };
+    out(head, 16);
+    if (disk_zstd) out(&kind, 4);
     if (compressed_ok) {
         const uint64_t usize = o.size();
-        fwrite(&usize, 8, 1, disk_out);
-        fwrite(compressed.data(), 1, compressed.size(), disk_out);
+        out(&usize, 8);
+        out(compressed.data(), compressed.size());
     } else {
-        fwrite(o.data(), 1, o.size(), disk_out);
+        out(o.data(), o.size());
     }
     if (!hold) fflush(disk_out);
     if (disk_idx) {   // (after the record: an index ahead of the file would name a record it does not have)
         std::vector<uint8_t> e;
         idx_put(e, p.key, stored, kind);
-        fwrite(e.data(), 1, e.size(), disk_idx);
-        if (!hold) fflush(disk_idx);
+        if (hold) idx_pend.insert(idx_pend.end(), e.begin(), e.end());
+        else fwrite(e.data(), 1, e.size(), disk_idx), fflush(disk_idx);
     }
     if (hold) {
         if (disk_held.fetch_add(head_size + (size_t)stored) + head_size + (size_t)stored >= kDiskHold) disk_flush_locked();
