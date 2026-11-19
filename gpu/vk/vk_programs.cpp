@@ -203,7 +203,7 @@ void load_work(LoadJob& job) {
                 bool whole = recs.size() == 1;
                 if (!whole && learned != index_compute_variants.end())
                     whole = std::find(learned->second.begin(), learned->second.end(), p->variant) != learned->second.end();
-                bytes += (int64_t)(d.size - p->code_words * 4);
+                bytes += (int64_t)(d.size - std::min<uint64_t>(d.size, program_code_words(*p) * 4));
                 // (by its module's identifier where a run before learned it: the pipeline from the caches with no code read
                 // and no module made. The dispatch needs no module of a program whose pipeline is there; where no cache
                 // has the pipeline, the code is read as before)
@@ -219,7 +219,7 @@ void load_work(LoadJob& job) {
                     }
                     census.load_by_id_cold++;
                 }
-                if (whole) bytes += (int64_t)p->code_words * 4, whole = program_cache_complete_unshared(*p, in);
+                if (whole) bytes += (int64_t)program_code_words(*p) * 4, whole = program_cache_complete_unshared(*p, in);
                 if (!whole && !p->failed) {   // (no module yet, so no pipeline; its layout is made of its descriptors alone)
                     program_layout(*p);
                     census.load_programs++, census.load_light++;

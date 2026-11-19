@@ -2319,6 +2319,10 @@ int main(int argc, char **argv) {
             /* (the recordings' 48 descriptor pools at an eighth: 4 MiB of the driver's memory each as they come, 195 MiB in
                all, for the few programs past the push limit; one that runs out is followed by another) */
             {"RX_VK_DESC_POOL_DIV", "8"},
+            /* (the translated programs compressed (longshot_programs.zst.bin): a whole preparation's ~38,800 programs were ~5 GB
+               written into the title folder at a few MB a second, the preparation's workers waiting on the writes; compressed,
+               2 GB and ~5x faster. The loads at a create call read its records whole and unpacked, gpu/vk/vk_progcache.cpp) */
+            {"RX_VK_PROGRAM_CACHE_ZSTD", "1"},
         };
         for (size_t i = 0; i < sizeof defaults / sizeof *defaults; i++) setenv(defaults[i][0], defaults[i][1], 0);
     }
