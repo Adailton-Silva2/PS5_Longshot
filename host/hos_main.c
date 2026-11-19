@@ -2279,6 +2279,10 @@ int main(int argc, char **argv) {
 #endif
     hos_game_layout();   /* (the game folder's cache/ and logs/, before anything writes there, --prepare-shaders too: host/game_layout.c) */
     load_longshot_env();
+#ifdef __PROSPERO__
+    void hos_ps5_memory_floor_start(void);
+    hos_ps5_memory_floor_start();   /* (the title closes itself before the console runs out of memory: host/ps5/win32_ps5.c) */
+#endif
     hos_options_choose(argc, argv);   /* (before the Discord status reads it, below: host/options_path.c) */
     driver_cache_room();
     driver_cache_folder();
