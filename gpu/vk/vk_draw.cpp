@@ -6,6 +6,9 @@
 // and the draws themselves.
 //
 // Pipelines persist in a VkPipelineCache in the game folder's cache/ (longshot_vk_pipelines.bin).
+#ifdef __PROSPERO__
+#include <unistd.h>   // (write, fileno: note_pend_flush_locked)
+#endif
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -1619,6 +1622,35 @@ void notes_open_locked(const std::vector<std::unique_ptr<PipeNote>>* known) {
     }
 }
 /// Whether key was new to the notes (play meets it for the first time on this install)
+// (PS5) The state list's notes in a preparation, held and written 8 MB at a time (notes_hold): one by one, each 26 KB note was a
+// write and a flush of its own, ~60 ms on the console, and the 29,537 of the shipped list took ~30 minutes under note_mu with the
+// CPUs idle. (note_mu held)
+std::vector<uint8_t> note_pend;
+bool note_holding = false;
+void note_pend_flush_locked() {
+    if (!note_file || note_pend.empty()) return;
+    fflush(note_file);
+#ifdef __PROSPERO__
+    for (size_t at = 0; at < note_pend.size();) {   // (one write call where the console's stdio made one per buffer)
+        const ssize_t n = write(fileno(note_file), note_pend.data() + at, note_pend.size() - at);
+        if (n <= 0) break;
+        at += (size_t)n;
+    }
+#else
+    fwrite(note_pend.data(), 1, note_pend.size(), note_file), fflush(note_file);
+#endif
+    note_pend.clear();
+}
+/// (state_list_prepare) notes held from now on (true), or written out and no longer held (false)
+void notes_hold(bool on) {
+    std::lock_guard lk(note_mu);
+#ifdef __PROSPERO__
+    if (!on) note_pend_flush_locked();
+    note_holding = on;
+#else
+    (void)on;
+#endif
+}
 bool pipeline_note(uint64_t key, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo,
                    const uint8_t* color_types = nullptr) {
     static const bool off = env_on("RX_VK_NO_PROGRAM_CACHE");
@@ -1632,6 +1664,11 @@ bool pipeline_note(uint64_t key, const Program& p, const NvnState& s, const Targ
     std::lock_guard lk(note_mu);
     if (!note_file) notes_open_locked(nullptr);
     if (!note_file || !noted.insert(key).second) return false;
+    if (note_holding) {
+        note_pend.insert(note_pend.end(), (const uint8_t*)rec.get(), (const uint8_t*)rec.get() + sizeof(PipeNote));
+        if (note_pend.size() >= (8u << 20)) note_pend_flush_locked();
+        return true;
+    }
     fwrite(rec.get(), sizeof(PipeNote), 1, note_file), fflush(note_file);
     return true;
 }
@@ -2148,6 +2185,8 @@ void state_list_prepare(void (*progress)(size_t done, size_t total), bool open_s
     for (size_t i = 0; i < variant_of.size(); i++)
         if (made_plain[i]) plain_of.emplace(want[rec_program[variant_of[i]]].key, made_plain[i]);
     size_t noted_n = 0, no_variant = 0, noted_mesh = 0, noted_fallback = 0, noted_plain = 0;
+    notes_hold(true);   // (written out after the loop: PS5, note_pend)
+    struct Unhold { ~Unhold() { notes_hold(false); } } unhold;
     auto s = std::make_unique<NvnState>();
     for (size_t i = 0; i < recs.size(); i++) {
         const StateRec& r = recs[i];
@@ -9478,6 +9517,19 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         crash_markers::end(warming);
 #ifdef __PROSPERO__
         remove(warmed_path.c_str());   // (all built: the next preparation starts over)
+        // (the whole game's notes go: what they name is in the driver's disk cache now. Kept, a load at a create call built every
+        // pipeline any part of the game uses with that program: 2,240 loads queued at the title of a base console, the longest
+        // first use waiting 6.7 s and the safety net putting every program back before the title. Play notes what it draws again,
+        // and a pipeline it then asks for comes from that cache. RX_VK_PS5_KEEP_NOTES=1: kept)
+        if (!prepare_only && !env_on("RX_VK_PS5_KEEP_NOTES")) {
+            std::lock_guard lk(note_mu);
+            note_pend_flush_locked();
+            if (note_file) fclose(note_file), note_file = nullptr;
+            noted.clear();
+            if (remove(pipe_notes_path().c_str()) == 0)
+                logf("vk: precompile: the state lists' notes let go: their pipelines are in the driver's disk cache, and play notes "
+                     "its own again (RX_VK_PS5_KEEP_NOTES=1 keeps them)");
+        }
 #endif
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
@@ -9515,11 +9567,23 @@ void precompile_at_create() {
     // (every program read in here, kept from now on: its records are taken as they are read, so the load its create call
     // queues finds none and makes none of its noted pipelines. Those are asked of the caches here, as that load would)
     std::vector<Program*> fallbacks, kept;
+    // (PS5, an install whose first start prepared the whole game: the fallback programs are not kept ready. Their compute
+    // pipelines are in the driver's disk cache, built by that preparation, so a first draw finds them in milliseconds; kept,
+    // all 1,550 of the game's were read and their pipelines made at every start, 68 s before the title and ~600 MiB of heap in
+    // play on a base console. RX_VK_FALLBACKS_READY=1: kept, as elsewhere)
+    bool fallbacks_ready = true;
+#ifdef __PROSPERO__
+    {
+        static const bool asked = env_on("RX_VK_FALLBACKS_READY");
+        FILE* seed = asked ? nullptr : fopen(seed_path().c_str(), "rb");
+        if (seed) fclose(seed), fallbacks_ready = false;
+    }
+#endif
     program_cache_load_some({}, [&](Program& p) {
         ensure_layout(p);
         kept.push_back(&p);
         if (p.fallback) fallbacks.push_back(&p);
-    }, false, true);
+    }, false, fallbacks_ready);
     std::unordered_map<uint64_t, std::vector<const NoteRef*>> notes_of;
     if (!kept.empty())
         for (const NoteRef& r : refs) notes_of[r.prog].push_back(&r);

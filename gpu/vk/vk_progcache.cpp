@@ -13,11 +13,13 @@
 #ifndef _WIN32
 #include <fcntl.h>
 #include <sys/file.h>
+#include <unistd.h>
 #endif
 #include <io.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -382,12 +384,36 @@ void get_info(Reader& r, Shader::Info& i) {
 }
 
 namespace {
+/// (PS5) bytes to a stream's descriptor in as few write calls as it takes, after what the stream holds: the console's stdio wrote a
+/// large fwrite in its buffer's size, each call ~60 ms whatever its size, so 8 MB of held records took ~2.4 s under disk_mu
+bool write_whole(FILE* f, const std::vector<uint8_t>& bytes) {
+    fflush(f);
+#ifdef __PROSPERO__
+    const int fd = fileno(f);
+    for (size_t at = 0; at < bytes.size();) {
+        const ssize_t n = write(fd, bytes.data() + at, bytes.size() - at);
+        if (n <= 0) return false;
+        at += (size_t)n;
+    }
+    return true;
+#else
+    return fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size() && fflush(f) == 0;
+#endif
+}
 void disk_flush_locked() {   // (the records before their index entries: disk_mu held)
-    if (disk_out && !disk_pend.empty()) fwrite(disk_pend.data(), 1, disk_pend.size(), disk_out);
+    const auto t0 = std::chrono::steady_clock::now();
+    const size_t n = disk_pend.size();
+    if (disk_out && !disk_pend.empty()) write_whole(disk_out, disk_pend);
     if (disk_out) fflush(disk_out);
-    if (disk_idx && !idx_pend.empty()) fwrite(idx_pend.data(), 1, idx_pend.size(), disk_idx);
+    if (disk_idx && !idx_pend.empty()) write_whole(disk_idx, idx_pend);
     if (disk_idx) fflush(disk_idx);
     disk_pend.clear(), idx_pend.clear();
+    if (n) {   // (the first few, timed: what a preparation's writes cost on this machine)
+        static std::atomic<int> told{0};
+        if (told++ < 6)
+            logf("vk: program cache: %zu KB of held records written in %.0f ms", n >> 10,
+                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    }
     disk_held = 0;
 }
 }   // namespace

@@ -48,7 +48,7 @@ class ProgramCacheIndexTests(unittest.TestCase):
         self.assertLess(record, held, "the held index entry must follow its record")
         self.assertIn("fflush(disk_idx)", save)
         flush = block(self.source, "void disk_flush_locked(")
-        self.assertLess(flush.index("disk_pend.data()"), flush.index("idx_pend.data()"))
+        self.assertLess(flush.index("write_whole(disk_out, disk_pend)"), flush.index("write_whole(disk_idx, idx_pend)"))
 
     def test_index_checked_at_start(self):
         init = block(self.source, "void disk_init(")
