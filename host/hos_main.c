@@ -2323,6 +2323,10 @@ int main(int argc, char **argv) {
                written into the title folder at a few MB a second, the preparation's workers waiting on the writes; compressed,
                2 GB and ~5x faster. The loads at a create call read its records whole and unpacked, gpu/vk/vk_progcache.cpp) */
             {"RX_VK_PROGRAM_CACHE_ZSTD", "1"},
+            /* (the compute programs kept ready in play: those this install's play dispatched, not the shipped list's 2,199 too,
+               whose pipelines the first start's preparation put in the driver's disk cache. Listed, they held ~290 MiB more of
+               the driver's memory in a base console's Kokiri walk) */
+            {"RX_VK_PRECOMPILE_COMPUTES", "learned"},
         };
         for (size_t i = 0; i < sizeof defaults / sizeof *defaults; i++) setenv(defaults[i][0], defaults[i][1], 0);
     }

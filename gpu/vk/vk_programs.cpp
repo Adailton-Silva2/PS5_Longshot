@@ -346,7 +346,22 @@ std::atomic<int> load_mode{-1};
 std::atomic<bool> struck_last_session{false};   // (load_default.h: the session before this one left a strike)
 void programs_load_decide(bool native_mesh) {
     struck_last_session = load_default::strike_take(load_fallback_path());
-    const load_default::Choice c = load_default::choose(getenv("RX_VK_LOAD"), native_mesh, load_default::marker_there(load_fallback_path()),
+    bool marker = load_default::marker_there(load_fallback_path());
+#ifdef __PROSPERO__
+    // (PS5, an install whose first start prepared the whole game (longshot_shaders.bin beside it): the safety net's marker is
+    // left out. Its fallback, every program before the title, would read the whole game's ~46,000 programs into a console's
+    // memory; a slow first use there is the lesser cost. The first start after the preparation is the slow one: its loads
+    // read a cold disk (one wait of 4.7 s seen, 1.8 s in another))
+    if (marker && !getenv("RX_VK_LOAD")) {
+        if (FILE* seed = fopen(seed_path().c_str(), "rb")) {
+            fclose(seed);
+            marker = false;
+            logf("vk: programs: the marker of slow first uses (%s) is left out on the console: the whole game's programs are "
+                 "in the cache, too many to load before the title (RX_VK_LOAD=start does)", load_fallback_path().c_str());
+        }
+    }
+#endif
+    const load_default::Choice c = load_default::choose(getenv("RX_VK_LOAD"), native_mesh, marker,
                                                         env_on("RX_VK_PROGRAM_CACHE_ZSTD"));   // (as vk_progcache.cpp disk_init reads it)
     load_mode.store(c.create ? 1 : 0, std::memory_order_release);
     logf("vk: programs are loaded %s: %s (RX_VK_LOAD=create or start says which)",
