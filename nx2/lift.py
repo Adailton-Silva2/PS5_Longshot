@@ -32,6 +32,7 @@ import fastfp   # (longshot) fast float regions (A64_FASTFP): its emit_function,
 import lift_fixes
 import suyu_rt_fixes
 import chunks
+import compact_bodies
 import standalone
 import adr_entries  # noqa: E402
 import nso
@@ -46,6 +47,7 @@ insn.install()
 fastfp.install()   # (before lift_fixes and poll wrap emit_function: theirs go around this one)
 lift_fixes.install()
 suyu_rt_fixes.install()
+compact_bodies.install()   # (after insn's classify: the bodies as runs, nx2/compact_bodies.py)
 
 
 def module_of(img, pc):
@@ -79,20 +81,21 @@ def coverage(L, img, out_dir):
     for e, (body, _) in L.funcs.items():
         m = module_of(img, e)
         n_bad = 0
-        for pc, (k, w) in body.items():
+        items = list(body.items())   # (once: a64_lift.Body reads and classifies its words again at each pass)
+        for pc, (k, w) in items:
             if k[0] == "op" and w in bad:
                 n_bad += 1
                 sites[w] += 1
             elif k[0] == "op" and w in undefined:
                 per[m]["undefined"] += 1
-        kinds = collections.Counter(k[0] for k, _ in body.values())
+        kinds = collections.Counter(k[0] for _, (k, _) in items)
         c = per[m]
         c["functions"] += 1
         c["instructions"] += len(body)
         c["untranslated"] += n_bad
         c["complete"] += n_bad == 0
         c["leaf"] += not (kinds["bl"] or kinds["blr"] or kinds["svc"])
-        c["indirect_br"] += sum(1 for pc, (k, _) in body.items() if k[0] == "br" and pc not in L.jt)
+        c["indirect_br"] += sum(1 for pc, (k, _) in items if k[0] == "br" and pc not in L.jt)
         c["blr"] += kinds["blr"]
     total = collections.Counter()
     lines = ["module    functions  complete   leaf      instructions  untranslated  BLR       BR(not table)"]
