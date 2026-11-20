@@ -1779,3 +1779,8 @@ int display_refresh_mhz() {
     return mhz;
 }
 } // namespace mkwvk
+
+#ifdef __PROSPERO__
+/// (PS5, host/ps5/win32_ps5.c's memory floor) the start-up's shader preparation is under way: the notice it shows says so
+extern "C" int rx_vk_preparing(void) { return mkwvk::prep_running.load() ? 1 : 0; }
+#endif

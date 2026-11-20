@@ -1243,8 +1243,16 @@ static void *memory_floor_watch(void *unused) {
                     if (inflight[0]) fprintf(stderr, "[ps5] memory floor: pipelines being built:%s\n", inflight);
                 }
             }
-            notify_player("Longshot ran out of memory and was closed to keep the console safe. Lower the resolution or turn off "
-                          "frame generation in the menu, then load your last save.");
+            {   /* (the start-up's shader preparation under way, gpu/vk/vk_main.cpp: no setting of the player's to blame, and the
+                   next start goes on from what was kept) */
+                extern int rx_vk_preparing(void) __attribute__((weak));
+                if (rx_vk_preparing && rx_vk_preparing())
+                    notify_player("Longshot ran out of memory while preparing the game's graphics and was closed to keep the "
+                                  "console safe. Start it again: it goes on from where it stopped.");
+                else
+                    notify_player("Longshot ran out of memory and was closed to keep the console safe. Lower the resolution or "
+                                  "turn off frame generation in the menu, then load your last save.");
+            }
             hos_ps5_exit(3);
         }
         sceKernelUsleep(room < (1ull << 30) ? 25000 : 250000);
