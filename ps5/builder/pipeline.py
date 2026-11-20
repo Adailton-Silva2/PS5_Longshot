@@ -265,6 +265,7 @@ class Gate:
         self.cv = threading.Condition()
         self.limit = limit_mb
         self.running = {}   # (lease: [need, Popen or None])
+        self.queue = []     # (the compiles waiting, in the order they came: the largest first, none passed by smaller ones)
 
     def fits(self, need):
         if self.limit:
@@ -277,10 +278,13 @@ class Gate:
 
     def enter(self, need):
         with self.cv:
-            while self.running and not self.fits(need):
-                self.cv.wait(1.0)
             lease = object()
+            self.queue.append(lease)
+            while self.queue[0] is not lease or (self.running and not self.fits(need)):
+                self.cv.wait(1.0)
+            self.queue.pop(0)
             self.running[lease] = [need, None]
+            self.cv.notify_all()
             return lease
 
     def started(self, lease, proc):
@@ -410,7 +414,8 @@ def compile_game(kit, info, work, gen, clang, jobs, memory_gb=0):
     objects, failed, done, t0 = [], [], 0, time.time()
     say("@@progress 0 %d" % len(jobs_list))
     with concurrent.futures.ThreadPoolExecutor(jobs) as pool:
-        for obj, err in pool.map(one, jobs_list):
+        for future in concurrent.futures.as_completed([pool.submit(one, j) for j in jobs_list]):
+            obj, err = future.result()
             done += 1
             objects.append(obj)
             if err:
