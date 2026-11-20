@@ -214,7 +214,7 @@ def lift(kit, work, exefs, lift_jobs):
 #     running ones may still take and RESERVE_MB (one always runs).
 RESERVE_MB = 1536
 MIN_PART_MB = 900   # (the least a part is cut to: 0.4 GB + ~10 MB of C)
-SELF_MB = 300       # (this process, with a part's texts in hand, within --memory)
+SELF_MB = 400       # (this process, with a part's texts in hand, and the estimates' slack: 2 x 1.4 GB measured 3.08 GB with 300)
 COMPILED = "game_%s.o"
 
 
@@ -308,16 +308,27 @@ def rss_mb(proc):
         return 0
 
 
+def make_part(nx2, path, lo, hi, out):
+    """(--make-part, a process of its own) the C a chunk's compile job compiles, written to out: its part (the chunk's head and
+    text[lo:hi], a run of its functions; hi -1: the whole chunk) with its giants split"""
+    sys.path.insert(0, nx2)
+    import lifted_c
+    import split_giants
+    with open(path, "rb") as f:
+        text = f.read()
+    if lo or hi >= 0:
+        m = lifted_c.HEAD_BYTES.search(text)
+        text = text[:m.start() if m else 0] + text[lo:hi if hi >= 0 else len(text)]
+    split, st = split_giants.split_text(text.decode("utf-8"), split_giants.PIECE_KB)
+    with open(out, "wb") as f:
+        f.write(split.encode("utf-8") if st["functions_split"] else text)
+
+
 def compile_game(kit, info, work, gen, clang, jobs, memory_gb=0):
     step(3)
     src, env = python_env(kit, work)
     sys.path.insert(0, os.path.join(src, "nx2"))
     import split_giants
-    import lifted_c
-
-    def lifted_c_head(text):
-        m = lifted_c.HEAD_BYTES.search(text)
-        return m.start() if m else 0
     rt64 = os.path.join(work, "rt64")
     # (the 64-bit guest window's runtime header and a64_rt.c: nx2/rtgen.py, as ps5/build.py makes them)
     run([sys.executable, "-I", "-c", "import sys; sys.path.insert(0, sys.argv[1]); import rtgen; rtgen.write(sys.argv[2])",
@@ -356,7 +367,8 @@ def compile_game(kit, info, work, gen, clang, jobs, memory_gb=0):
                               (lo, hi) if len(parts) > 1 else (0, None), need))
         del text
     for s in others:
-        jobs_list.append((os.path.basename(s)[:-2], s, None, 400))
+        # (the lift's other files: a64_table.c, 16 MB, took 589 MB; the rest ~50 MB)
+        jobs_list.append((os.path.basename(s)[:-2], s, None, int(400 + 15 * os.path.getsize(s) / (1 << 20))))
     biggest = max(n for _, _, _, n in jobs_list)
     say("compiler: %s; %d files (%d chunks), up to %d at once%s; the largest compile takes ~%.1f GB" % (
         version, len(jobs_list), len(chunks), jobs, " within %.1f GB" % memory_gb if memory_gb else " as the free memory allows",
@@ -367,17 +379,6 @@ def compile_game(kit, info, work, gen, clang, jobs, memory_gb=0):
             for g in (f, f + ".key"):
                 if os.path.exists(os.path.join(obj_dir, g)):
                     os.remove(os.path.join(obj_dir, g))
-
-    def part_text(path, span):
-        """the C a chunk's job compiles: its part (the chunk's head and its run of functions), its giants split"""
-        with open(path, "rb") as f:
-            text = f.read()
-        lo, hi = span
-        if lo or hi is not None:
-            first = lifted_c_head(text)
-            text = text[:first] + text[lo:hi]
-        split, st = split_giants.split_text(text.decode("utf-8"), split_giants.PIECE_KB)
-        return split.encode("utf-8") if st["functions_split"] else text
 
     def one(job):
         name, path, span, need = job
@@ -393,10 +394,12 @@ def compile_game(kit, info, work, gen, clang, jobs, memory_gb=0):
         lease = gate.enter(need)
         copy = None
         try:
-            if span is not None:
+            if span is not None:   # (made by a process of its own: cutting a giant's lines takes this one's memory for good)
                 copy = os.path.join(cut_dir, name + ".c")
-                with open(copy, "wb") as f:
-                    f.write(part_text(path, span))
+                r = subprocess.run([sys.executable, "-I", os.path.abspath(__file__), "--make-part", os.path.join(src, "nx2"), path,
+                                    str(span[0]), str(-1 if span[1] is None else span[1]), copy], capture_output=True, text=True)
+                if r.returncode:
+                    return obj, "%s: making its copy failed (exit %d)\n%s" % (name, r.returncode, (r.stdout + r.stderr)[-3000:])
             p = subprocess.Popen([clang] + flags + ["-c", copy or path, "-o", obj], stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True, errors="replace")
             gate.started(lease, p)
@@ -609,6 +612,10 @@ def build(a):
 
 
 def main():
+    if sys.argv[1:2] == ["--make-part"]:
+        nx2, path, lo, hi, out = sys.argv[2:7]
+        make_part(nx2, path, int(lo), int(hi), out)
+        return 0
     ap = argparse.ArgumentParser(description="Longshot PS5 Builder: the PS5 title folder from your own game file")
     ap.add_argument("--check", action="store_true", help="check the builder's own parts on this PC (no game is needed), and stop")
     ap.add_argument("--game", help="the game: a .nup file, or a folder with its exefs")
