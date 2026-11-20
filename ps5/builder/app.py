@@ -22,8 +22,8 @@ STEPS = ["Reading the game's program", "Translating it to C", "Compiling for the
          "Listing the game's shaders"]
 ABOUT = {
     1: "A few seconds.",
-    2: "5 to 15 minutes. Uses about 2 to 3 GB of memory.",
-    3: "The long step: 30 to 60 minutes on a 6-core PC.",
+    2: "5 to 15 minutes. About 2 GB of memory, more to go faster where it is free.",
+    3: "The long step: 30 to 60 minutes on a 6-core PC; 1 to 2 hours with Memory to use at 2 or 3 GB.",
     4: "Under a minute.",
     5: "A few seconds.",
 }
